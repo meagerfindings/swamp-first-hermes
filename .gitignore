@@ -1,0 +1,79 @@
+# Secrets and environment files
+.env
+.env.*
+!.env.example
+.envrc
+.envrc.*
+!.envrc.example
+*.env
+*.secret
+*.secrets
+*.token
+*.tokens
+# Explicit token secret artifacts; do not ignore tokenizer/token-parsing source.
+token.txt
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+id_rsa
+id_ed25519
+credentials*
+secrets.json
+api_keys.txt
+secrets/
+tokens/
+
+# Local configuration and deployment wiring
+config.local/
+local-config/
+private-config/
+deployment/
+deployments/
+scheduler/
+schedulers/
+delivery/
+deliveries/
+wiring/
+
+# Swamp runtime state and generated operational material
+/.swamp/
+/swamp-runtime/
+/swamp-data/
+/swamp-models/
+/swamp-vaults/
+/swamp-workflows/
+/swamp-reports/
+/swamp-scripts/
+/scripts/
+/runtime/
+/state/
+/data/
+/models/
+/vaults/
+/workflows/
+/reports/
+/generated-scripts/
+
+# Logs and local tool output
+*.log
+logs/
+log/
+*.pid
+*.tmp
+*.cache
+.cache/
+
+# Python and editor-local files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
+
+# Local implementation plans
+docs/plans/
