@@ -27,6 +27,14 @@ array explicitly includes `swamp_first`. Script-only `cronjob` calls with
 are not blocked by this rule. This structural check does not prove that an agent uses Swamp
 and does not parse shell text. It does not comprehensively enforce all Swamp-first routing.
 
+## Governance and threat boundary
+
+Swamp-first is currently a bounded plugin capability, not comprehensive
+end-to-end enforcement. The [governance and threat-boundary
+contract](docs/governance-boundary.md) defines the public trust boundaries,
+distinguishes off/audit/enforce concepts, and sets acceptance criteria for
+future core routing and provenance support.
+
 ## Private installation
 
 Install this source tree by copying its `swamp_first_hermes` directory into the
