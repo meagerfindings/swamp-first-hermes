@@ -1,5 +1,21 @@
 # RFC: Hermes-core routing and effect-policy interface
 
+**Status: Superseded — kept for historical reasoning, not an active plan.**
+See [swamp-first-toolset-plan.md](swamp-first-toolset-plan.md) for the approach
+actually adopted. A concrete feasibility scoping against the real upstream
+Hermes project found forking core to implement this RFC's mandatory
+chokepoint would take an estimated 2–4 person-months for the minimum viable
+phases, plus a standing rebase tax from ongoing upstream churn on exactly the
+touched files, and that the RFC's central premise — one mandatory decision
+point — is already false today: the upstream ACP (Zed IDE) adapter has its
+own, entirely independent permission system with no connection to
+`pre_tool_call`. Deployment-level toolset scoping (disabling effect-capable
+toolsets outright, so there is nothing to bypass rather than something to
+detect bypassing) turned out to reach the same practical goal without any
+core changes. This document is retained because the boundary-category
+analysis below remains useful context, not because the proposal is still
+live.
+
 **Status: Proposal**  
 **Audience:** Hermes-core maintainers, host implementers, and public plugin authors
 

@@ -1,5 +1,12 @@
 # Hermes-core routing and effect-policy implementation plan
 
+**Status: Superseded — kept for historical reasoning, not an active plan.**
+See [swamp-first-toolset-plan.md](swamp-first-toolset-plan.md) for the plan
+actually adopted, and the superseded notice at the top of
+[hermes-core-routing-policy-rfc.md](hermes-core-routing-policy-rfc.md) for
+why this phased core-delivery approach was dropped in favor of
+deployment-level toolset scoping.
+
 **Status: Implementation plan**  
 **Scope:** public, generic upstream discussion and incremental core delivery
 
