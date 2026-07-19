@@ -6,7 +6,7 @@ This repository intentionally contains only reusable source material and public 
 
 ## Current scope
 
-The foundation currently establishes the public package boundary and its publication safeguards. It does not yet provide a Hermes plugin, Swamp command adapter, policy engine, installation workflow, or operational automation. Those capabilities are planned for later milestones.
+The foundation currently establishes the public package boundary and a minimal read-only Swamp command adapter. It does not yet provide a Hermes plugin, policy engine, installation workflow, or operational automation. Those capabilities are planned for later milestones.
 
 ## Public-boundary rules
 
