@@ -25,12 +25,29 @@ def test_private_installation_documentation_is_complete_and_public() -> None:
         "repository_path",
         "SWAMP_FIRST_POLICY_MODE",
         "direct scheduler bypasses",
+        "scheduled agent jobs",
+        "`cronjob`",
+        "`create` or `update`",
+        "`enabled_toolsets`",
+        "`swamp_first`",
+        "`no_agent`",
         "comprehensively enforce all Swamp-first routing",
     ):
         assert required_statement in installation
 
     assert "docs/installation.md" in readme
     assert "deployment, scheduler, or delivery" in readme
+    for required_statement in (
+        "scheduled agent jobs",
+        "`cronjob`",
+        "`create` or `update`",
+        "`enabled_toolsets`",
+        "`swamp_first`",
+        "`no_agent`",
+        "does not prove that an agent uses Swamp",
+        "does not parse shell text",
+    ):
+        assert required_statement in readme
 
     # Public examples must use a variable or a relative path, never a personal
     # home path, host, token, or a literal infrastructure URL.

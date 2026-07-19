@@ -60,9 +60,16 @@ configuration to this repository.
 environment. Its supported values are `off`, `audit`, and `strict`; an unset or
 invalid value defaults to `off`. Set it in the private process environment,
 not in a tracked file. `strict` narrowly blocks direct scheduler bypasses
-expressed through conventional `command` or `argv` arguments. It does not
-comprehensively enforce all Swamp-first routing, and it does not infer intent
-from tool names, free-form text, shell pipelines, or local metadata.
+expressed through conventional `command` or `argv` arguments. It also blocks
+scheduled agent jobs created or updated through the documented `cronjob` tool
+when their `enabled_toolsets` array does not explicitly include `swamp_first`.
+A `cronjob` call with `no_agent` set to `true` is script-only and is not blocked
+by this rule; actions other than `create` or `update` are also safe. This check
+only validates these tool arguments: it does not prove that an agent uses
+Swamp, does not parse shell text, does not call a real scheduler, and does not
+read or modify scheduler state. It does not comprehensively enforce all Swamp-first routing,
+and it does not infer intent from free-form text, shell pipelines, or local
+metadata.
 
 ## Verify with Swamp evidence
 

@@ -9,7 +9,10 @@ from typing import Any
 import pytest
 
 from swamp_first_hermes import POLICY_MODE_ENV_VAR, pre_tool_call_policy, register
-from swamp_first_hermes.policy import PUBLIC_STRICT_SCHEDULER_BYPASS_ERROR
+from swamp_first_hermes.policy import (
+    PUBLIC_STRICT_SCHEDULED_AGENT_TOOLSET_ERROR,
+    PUBLIC_STRICT_SCHEDULER_BYPASS_ERROR,
+)
 from swamp_first_hermes.tools import swamp_model_search, swamp_workflow_search
 
 
@@ -78,6 +81,32 @@ def test_policy_hook_defaults_to_off_and_does_not_block(
     monkeypatch.delenv(POLICY_MODE_ENV_VAR, raising=False)
 
     assert pre_tool_call_policy("terminal", {"command": "crontab -e"}, "task-1") is None
+
+
+def test_policy_hook_blocks_noncompliant_scheduled_agent_jobs_in_strict_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(POLICY_MODE_ENV_VAR, "strict")
+
+    assert pre_tool_call_policy("cronjob", {"action": "create"}, "task-1") == {
+        "action": "block",
+        "message": PUBLIC_STRICT_SCHEDULED_AGENT_TOOLSET_ERROR,
+    }
+
+
+def test_policy_hook_allows_compliant_and_script_only_scheduled_jobs_in_strict_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(POLICY_MODE_ENV_VAR, "strict")
+
+    assert pre_tool_call_policy(
+        "cronjob",
+        {"action": "update", "enabled_toolsets": ["swamp_first"]},
+        "task-1",
+    ) is None
+    assert pre_tool_call_policy(
+        "cronjob", {"action": "create", "no_agent": True}, "task-1"
+    ) is None
 
 
 def test_discovery_and_evidence_wrappers_return_normalized_json(

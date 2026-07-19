@@ -1,5 +1,5 @@
 name: swamp_first_hermes
-version: 0.1.0
+version: 0.2.0
 description: "Read-only Swamp discovery and evidence tools with an opt-in policy guard."
 kind: standalone
 provides_tools:

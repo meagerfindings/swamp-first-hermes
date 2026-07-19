@@ -20,8 +20,12 @@ Each tool can use its caller's `repository_path`; if omitted, the local Swamp
 CLI inherits Hermes's current working directory. The optional
 `SWAMP_FIRST_POLICY_MODE` supports `off`, `audit`, and `strict`. In `strict`
 mode, the policy narrowly blocks detected direct scheduler bypasses in
-conventional command arguments. It does not comprehensively enforce all
-Swamp-first routing.
+conventional command arguments. It also blocks scheduled agent jobs created or
+updated through the documented `cronjob` tool unless their `enabled_toolsets`
+array explicitly includes `swamp_first`. Script-only `cronjob` calls with
+`no_agent` set to `true`, and lifecycle actions other than `create` or `update`,
+are not blocked by this rule. This structural check does not prove that an agent uses Swamp
+and does not parse shell text. It does not comprehensively enforce all Swamp-first routing.
 
 ## Private installation
 
