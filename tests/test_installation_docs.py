@@ -32,6 +32,9 @@ def test_private_installation_documentation_is_complete_and_public() -> None:
         "`swamp_first`",
         "`no_agent`",
         "comprehensively enforce all Swamp-first routing",
+        "local observation only",
+        "not immutable provenance",
+        "not a comprehensive audit",
     ):
         assert required_statement in installation
 

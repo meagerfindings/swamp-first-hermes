@@ -64,6 +64,23 @@ or establish provenance for every result. A passing check therefore means only
 that the implemented bounded rule passed; it does not prove that all work was
 Swamp-routed.
 
+### Local policy-decision observation
+
+For a detected non-safe decision in `audit` or `strict` mode, the documented
+`pre_tool_call` hook emits one standard Python logging event before it returns
+any strict-mode block directive. The fixed event fields are the policy mode,
+classification, action, and fixed reason code. The plugin does not include a
+tool name, arguments, paths, prompts, task or user identifiers, results, or
+exception details, and it does not add a logging handler, sink, file, network
+call, or runtime state.
+
+This logging is **local observation only**. It is **not immutable provenance**,
+not a comprehensive audit, and not evidence that a tool call executed, was
+routed through Swamp, or produced a particular result. Retention, access,
+formatting, and any forwarding are outside this plugin and depend on the host
+logging configuration. Safe decisions and all `off`-mode decisions emit no
+policy-decision event.
+
 ## Future core-routing and provenance contract
 
 Future comprehensive enforcement requires support below individual plugins.

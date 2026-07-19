@@ -35,6 +35,9 @@ def test_governance_boundary_is_public_and_honest_about_current_scope() -> None:
         "not present today",
         "every tool invocation",
         "acceptance criteria",
+        "local observation only",
+        "not immutable provenance",
+        "not a comprehensive audit",
     ):
         assert required_statement in normalized_governance
 

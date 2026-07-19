@@ -71,6 +71,17 @@ read or modify scheduler state. It does not comprehensively enforce all Swamp-fi
 and it does not infer intent from free-form text, shell pipelines, or local
 metadata.
 
+For detected non-safe decisions in `audit` or `strict` mode, the documented
+`pre_tool_call` hook emits a standard Python logging event with only fixed
+policy mode, classification, action, and reason-code fields. The plugin does
+not configure a handler or sink, and does not log tool names, arguments,
+paths, prompts, task or user identifiers, results, or exception details. This
+is **local observation only**: it is **not immutable provenance**, not a comprehensive audit,
+and does not show that a tool call executed or was Swamp-routed. Safe decisions
+and all `off`-mode decisions emit no policy-decision event. Host logging
+configuration, including retention and any forwarding, remains outside this
+plugin.
+
 ## Verify with Swamp evidence
 
 After Hermes has restarted with the plugin enabled, use the registered tools
