@@ -15,10 +15,34 @@ from .policy import (
     evaluate_tool_call,
 )
 from .tools import (
+    SWAMP_DEFINITION_WRITE_SCHEMA,
+    SWAMP_EXTENSION_PULL_SCHEMA,
+    SWAMP_EXTENSION_PUSH_SCHEMA,
+    SWAMP_EXTENSION_QUALITY_SCHEMA,
+    SWAMP_EXTENSION_SEARCH_SCHEMA,
+    SWAMP_MODEL_CREATE_SCHEMA,
+    SWAMP_MODEL_METHOD_RUN_SCHEMA,
     SWAMP_MODEL_SEARCH_SCHEMA,
+    SWAMP_MODEL_VALIDATE_SCHEMA,
+    SWAMP_WORKFLOW_CREATE_SCHEMA,
+    SWAMP_WORKFLOW_RUN_SCHEMA,
     SWAMP_WORKFLOW_SEARCH_SCHEMA,
+    SWAMP_WORKFLOW_SET_SCHEDULE_SCHEMA,
+    SWAMP_WORKFLOW_VALIDATE_SCHEMA,
+    swamp_definition_write,
+    swamp_extension_pull,
+    swamp_extension_push,
+    swamp_extension_quality,
+    swamp_extension_search,
+    swamp_model_create,
+    swamp_model_method_run,
     swamp_model_search,
+    swamp_model_validate,
+    swamp_workflow_create,
+    swamp_workflow_run,
     swamp_workflow_search,
+    swamp_workflow_set_schedule,
+    swamp_workflow_validate,
 )
 
 POLICY_MODE_ENV_VAR = "SWAMP_FIRST_POLICY_MODE"
@@ -91,5 +115,77 @@ def register(ctx: Any) -> None:
         toolset=_TOOLSET,
         schema=SWAMP_WORKFLOW_SEARCH_SCHEMA,
         handler=swamp_workflow_search,
+    )
+    ctx.register_tool(
+        name="swamp_model_create",
+        toolset=_TOOLSET,
+        schema=SWAMP_MODEL_CREATE_SCHEMA,
+        handler=swamp_model_create,
+    )
+    ctx.register_tool(
+        name="swamp_model_validate",
+        toolset=_TOOLSET,
+        schema=SWAMP_MODEL_VALIDATE_SCHEMA,
+        handler=swamp_model_validate,
+    )
+    ctx.register_tool(
+        name="swamp_model_method_run",
+        toolset=_TOOLSET,
+        schema=SWAMP_MODEL_METHOD_RUN_SCHEMA,
+        handler=swamp_model_method_run,
+    )
+    ctx.register_tool(
+        name="swamp_workflow_create",
+        toolset=_TOOLSET,
+        schema=SWAMP_WORKFLOW_CREATE_SCHEMA,
+        handler=swamp_workflow_create,
+    )
+    ctx.register_tool(
+        name="swamp_workflow_validate",
+        toolset=_TOOLSET,
+        schema=SWAMP_WORKFLOW_VALIDATE_SCHEMA,
+        handler=swamp_workflow_validate,
+    )
+    ctx.register_tool(
+        name="swamp_workflow_run",
+        toolset=_TOOLSET,
+        schema=SWAMP_WORKFLOW_RUN_SCHEMA,
+        handler=swamp_workflow_run,
+    )
+    ctx.register_tool(
+        name="swamp_extension_search",
+        toolset=_TOOLSET,
+        schema=SWAMP_EXTENSION_SEARCH_SCHEMA,
+        handler=swamp_extension_search,
+    )
+    ctx.register_tool(
+        name="swamp_extension_pull",
+        toolset=_TOOLSET,
+        schema=SWAMP_EXTENSION_PULL_SCHEMA,
+        handler=swamp_extension_pull,
+    )
+    ctx.register_tool(
+        name="swamp_extension_quality",
+        toolset=_TOOLSET,
+        schema=SWAMP_EXTENSION_QUALITY_SCHEMA,
+        handler=swamp_extension_quality,
+    )
+    ctx.register_tool(
+        name="swamp_extension_push",
+        toolset=_TOOLSET,
+        schema=SWAMP_EXTENSION_PUSH_SCHEMA,
+        handler=swamp_extension_push,
+    )
+    ctx.register_tool(
+        name="swamp_definition_write",
+        toolset=_TOOLSET,
+        schema=SWAMP_DEFINITION_WRITE_SCHEMA,
+        handler=swamp_definition_write,
+    )
+    ctx.register_tool(
+        name="swamp_workflow_set_schedule",
+        toolset=_TOOLSET,
+        schema=SWAMP_WORKFLOW_SET_SCHEDULE_SCHEMA,
+        handler=swamp_workflow_set_schedule,
     )
     ctx.register_hook("pre_tool_call", pre_tool_call_policy)

@@ -18,7 +18,22 @@ from swamp_first_hermes.swamp_cli import (
 
 def test_allowlist_maps_read_only_commands_to_fixed_json_arguments() -> None:
     """The adapter maps each public command to fixed ``--json`` arguments."""
-    assert ALLOWED_COMMANDS == frozenset({"model_search", "workflow_search"})
+    assert ALLOWED_COMMANDS == frozenset(
+        {
+            "model_search",
+            "workflow_search",
+            "model_create",
+            "model_validate",
+            "model_method_run",
+            "workflow_create",
+            "workflow_validate",
+            "workflow_run",
+            "extension_search",
+            "extension_pull",
+            "extension_quality",
+            "extension_push",
+        }
+    )
     assert build_command("model_search") == ("swamp", "model", "search", "--json")
     assert build_command("workflow_search") == (
         "swamp",
@@ -26,6 +41,126 @@ def test_allowlist_maps_read_only_commands_to_fixed_json_arguments() -> None:
         "search",
         "--json",
     )
+
+
+@pytest.mark.parametrize(
+    ("command", "positional_arguments", "expected_suffix"),
+    (
+        ("model_create", ("aws-ec2", "my-server"), ("model", "create", "aws-ec2", "my-server")),
+        ("model_validate", (), ("model", "validate")),
+        ("model_validate", ("my-server",), ("model", "validate", "my-server")),
+        (
+            "model_method_run",
+            ("my-server", "start"),
+            ("model", "method", "run", "my-server", "start"),
+        ),
+        ("workflow_create", ("nightly-check",), ("workflow", "create", "nightly-check")),
+        ("workflow_validate", (), ("workflow", "validate")),
+        (
+            "workflow_validate",
+            ("nightly-check",),
+            ("workflow", "validate", "nightly-check"),
+        ),
+        ("workflow_run", ("nightly-check",), ("workflow", "run", "nightly-check")),
+        ("extension_search", (), ("extension", "search")),
+        ("extension_search", ("llm",), ("extension", "search", "llm")),
+        (
+            "extension_pull",
+            ("@keeb/ollama",),
+            ("extension", "pull", "@keeb/ollama"),
+        ),
+        (
+            "extension_quality",
+            ("manifest.yaml",),
+            ("extension", "quality", "manifest.yaml"),
+        ),
+        (
+            "extension_push",
+            ("manifest.yaml",),
+            ("extension", "push", "manifest.yaml"),
+        ),
+    ),
+)
+def test_build_command_assembles_positional_arguments_for_new_commands(
+    command: str,
+    positional_arguments: tuple[str, ...],
+    expected_suffix: tuple[str, ...],
+) -> None:
+    """New commands accept caller-supplied positional arguments as discrete argv."""
+    assert build_command(command, *positional_arguments) == (
+        "swamp",
+        *expected_suffix,
+        "--json",
+    )
+
+
+@pytest.mark.parametrize(
+    ("command", "positional_arguments"),
+    (
+        ("model_create", ()),
+        ("model_create", ("only-one",)),
+        ("model_create", ("type", "name", "extra")),
+        ("workflow_run", ()),
+        ("workflow_run", ("a", "b")),
+        ("extension_search", ("a", "b")),
+    ),
+)
+def test_build_command_rejects_the_wrong_number_of_positional_arguments(
+    command: str,
+    positional_arguments: tuple[str, ...],
+) -> None:
+    with pytest.raises(ValueError, match="wrong number of arguments"):
+        build_command(command, *positional_arguments)
+
+
+@pytest.mark.parametrize(
+    "positional_arguments",
+    (
+        ("-rf",),
+        ("",),
+        ("bad\x00name",),
+    ),
+)
+def test_build_command_rejects_unsafe_positional_arguments(
+    positional_arguments: tuple[str, ...],
+) -> None:
+    with pytest.raises(ValueError, match="invalid argument"):
+        build_command("extension_pull", *positional_arguments)
+
+
+def test_run_swamp_command_passes_positional_arguments_to_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = Mock(
+        return_value=subprocess.CompletedProcess(
+            args=[], returncode=0, stdout='{"created": true}', stderr=""
+        )
+    )
+    monkeypatch.setattr("swamp_first_hermes.swamp_cli.subprocess.run", runner)
+
+    result = run_swamp_command("model_create", "aws-ec2", "my-server")
+
+    assert result == SwampCliResult(ok=True, data={"created": True}, error=None)
+    runner.assert_called_once_with(
+        ["swamp", "model", "create", "aws-ec2", "my-server", "--json"],
+        cwd=None,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=10.0,
+    )
+
+
+def test_run_swamp_command_rejects_invalid_positional_arguments_without_running_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = Mock()
+    monkeypatch.setattr("swamp_first_hermes.swamp_cli.subprocess.run", runner)
+
+    result = run_swamp_command("model_create", "-rf", "name")
+
+    assert result == SwampCliResult(ok=False, data=None, error="invalid_argument")
+    runner.assert_not_called()
 
 
 def test_success_parses_json_and_uses_the_supplied_repository_path(
