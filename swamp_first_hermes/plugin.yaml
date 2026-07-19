@@ -1,0 +1,9 @@
+name: swamp_first_hermes
+version: 0.1.0
+description: "Read-only Swamp discovery and evidence tools with an opt-in policy guard."
+kind: standalone
+provides_tools:
+  - swamp_model_search
+  - swamp_workflow_search
+provides_hooks:
+  - pre_tool_call
