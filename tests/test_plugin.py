@@ -13,7 +13,22 @@ from swamp_first_hermes.policy import (
     PUBLIC_STRICT_SCHEDULED_AGENT_TOOLSET_ERROR,
     PUBLIC_STRICT_SCHEDULER_BYPASS_ERROR,
 )
-from swamp_first_hermes.tools import swamp_model_search, swamp_workflow_search
+from swamp_first_hermes.tools import (
+    swamp_definition_write,
+    swamp_extension_pull,
+    swamp_extension_push,
+    swamp_extension_quality,
+    swamp_extension_search,
+    swamp_model_create,
+    swamp_model_method_run,
+    swamp_model_search,
+    swamp_model_validate,
+    swamp_workflow_create,
+    swamp_workflow_run,
+    swamp_workflow_search,
+    swamp_workflow_set_schedule,
+    swamp_workflow_validate,
+)
 
 
 class FakePluginContext:
@@ -44,7 +59,7 @@ class FakePluginContext:
         self.hooks.append((hook_name, callback))
 
 
-def test_registers_only_safe_swamp_discovery_and_evidence_tools_and_policy_hook() -> None:
+def test_registers_only_documented_swamp_tools_and_policy_hook() -> None:
     context = FakePluginContext()
 
     register(context)
@@ -52,10 +67,21 @@ def test_registers_only_safe_swamp_discovery_and_evidence_tools_and_policy_hook(
     assert [(tool["name"], tool["toolset"], tool["handler"]) for tool in context.tools] == [
         ("swamp_model_search", "swamp_first", swamp_model_search),
         ("swamp_workflow_search", "swamp_first", swamp_workflow_search),
+        ("swamp_model_create", "swamp_first", swamp_model_create),
+        ("swamp_model_validate", "swamp_first", swamp_model_validate),
+        ("swamp_model_method_run", "swamp_first", swamp_model_method_run),
+        ("swamp_workflow_create", "swamp_first", swamp_workflow_create),
+        ("swamp_workflow_validate", "swamp_first", swamp_workflow_validate),
+        ("swamp_workflow_run", "swamp_first", swamp_workflow_run),
+        ("swamp_extension_search", "swamp_first", swamp_extension_search),
+        ("swamp_extension_pull", "swamp_first", swamp_extension_pull),
+        ("swamp_extension_quality", "swamp_first", swamp_extension_quality),
+        ("swamp_extension_push", "swamp_first", swamp_extension_push),
+        ("swamp_definition_write", "swamp_first", swamp_definition_write),
+        ("swamp_workflow_set_schedule", "swamp_first", swamp_workflow_set_schedule),
     ]
     assert [tool["schema"]["name"] for tool in context.tools] == [
-        "swamp_model_search",
-        "swamp_workflow_search",
+        tool["name"] for tool in context.tools
     ]
     assert context.hooks == [("pre_tool_call", pre_tool_call_policy)]
 

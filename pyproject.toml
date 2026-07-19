@@ -1,2 +1,8 @@
+[project]
+name = "swamp-first-hermes"
+version = "0.2.0"
+requires-python = ">=3.11"
+dependencies = ["PyYAML>=6"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
