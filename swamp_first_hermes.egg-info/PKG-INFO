@@ -1,7 +1,0 @@
-Metadata-Version: 2.4
-Name: swamp-first-hermes
-Version: 0.2.0
-Requires-Python: >=3.11
-License-File: LICENSE
-Requires-Dist: PyYAML>=6
-Dynamic: license-file
