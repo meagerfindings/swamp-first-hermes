@@ -271,9 +271,13 @@ SWAMP_DEFINITION_WRITE_SCHEMA = {
                 "type": "string",
                 "description": (
                     "For a models/ or workflows/ path, the instance name to "
-                    "validate afterward (required). For an extension path, "
-                    "the manifest path to score (optional, defaults to "
-                    "manifest.yaml at the repository root)."
+                    "validate afterward (required). For an extension path "
+                    "under extensions/, omit this: the manifest governing the "
+                    "written file is found automatically. If given for an "
+                    "extension it must be a manifest path relative to "
+                    "repository_path, not an instance name; a value that "
+                    "names no existing file is ignored in favour of the "
+                    "discovered manifest."
                 ),
             },
             "timeout": _TIMEOUT_PROPERTY,

@@ -330,10 +330,21 @@ def _run_validation(
         return run_swamp_command(
             "workflow_validate", definition_name, repository_path=repository_directory, timeout=timeout
         )
-    manifest_target = definition_name
-    if not manifest_target and normalized is not None:
+    # ``definition_name`` means different things per lane: an instance name for
+    # model/workflow, but a manifest *path* here. Callers reasonably supply the
+    # instance name in both cases, which names no manifest and fails the write.
+    # Treat it as a hint: honour it only when it actually resolves to a file,
+    # otherwise find the manifest governing the written path.
+    manifest_target = None
+    if definition_name:
+        supplied = _normalize_relative_path(definition_name)
+        if supplied is not None:
+            supplied_real = _resolve_within_repository(repository_directory, supplied)
+            if supplied_real is not None and os.path.isfile(supplied_real):
+                manifest_target = supplied
+    if manifest_target is None and normalized is not None:
         manifest_target = _nearest_manifest(normalized, repository_directory)
-    manifest_target = manifest_target or _DEFAULT_MANIFEST_NAME
+    manifest_target = manifest_target or definition_name or _DEFAULT_MANIFEST_NAME
     return run_swamp_command(
         "extension_quality", manifest_target, repository_path=repository_directory, timeout=timeout
     )

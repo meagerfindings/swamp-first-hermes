@@ -405,12 +405,15 @@ def test_extension_path_scores_the_nearest_manifest_not_the_repository_root(
     )
 
 
-def test_explicit_definition_name_still_wins_over_manifest_discovery(
+def test_explicit_definition_name_still_wins_when_it_resolves(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     extension = tmp_path / "extensions" / "models" / "owner" / "thing"
     extension.mkdir(parents=True)
     (extension / "manifest.yaml").write_text("name: thing\n")
+    chosen = tmp_path / "chosen"
+    chosen.mkdir()
+    (chosen / "manifest.yaml").write_text("name: chosen\n")
     captured: dict[str, object] = {}
 
     def fake_runner(command: str, *positional: str, **kwargs: object):
@@ -430,6 +433,41 @@ def test_explicit_definition_name_still_wins_over_manifest_discovery(
 
     assert result.ok is True
     assert captured["positional"] == ("chosen/manifest.yaml",)
+
+
+def test_extension_instance_name_falls_back_to_manifest_discovery(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``definition_name`` is an instance name for models but a path here.
+
+    A caller following the documented "instance name" meaning names no
+    manifest at all, which previously failed the write outright. Honour the
+    argument only when it resolves to a real file.
+    """
+    extension = tmp_path / "extensions" / "models" / "owner" / "thing"
+    extension.mkdir(parents=True)
+    (extension / "manifest.yaml").write_text("name: thing\n")
+    captured: dict[str, object] = {}
+
+    def fake_runner(command: str, *positional: str, **kwargs: object):
+        captured["positional"] = positional
+        return _FakeResult(True, {}, None)
+
+    monkeypatch.setattr(
+        "swamp_first_hermes.definition_write.run_swamp_command", fake_runner
+    )
+
+    result = write_definition(
+        tmp_path,
+        "extensions/models/owner/thing/model.ts",
+        "export const x = 1;\n",
+        definition_name="thing",
+    )
+
+    assert result.ok is True
+    assert captured["positional"] == (
+        "extensions/models/owner/thing/manifest.yaml",
+    )
 
 
 # --- set_workflow_schedule ----------------------------------------------------
