@@ -285,7 +285,14 @@ SWAMP_DEFINITION_WRITE_SCHEMA = {
             },
             "content": {
                 "type": "string",
-                "description": "The full new content of the file.",
+                "description": (
+                    "The full new content of the file. A models/ or workflows/ "
+                    "write is reverted if it fails schema validation. An "
+                    "extension write is kept even when the quality rubric "
+                    "fails, so a multi-file change can be built up one file at "
+                    "a time; the rubric result is returned so you can see what "
+                    "still needs work before publishing."
+                ),
             },
             "definition_name": {
                 "type": "string",

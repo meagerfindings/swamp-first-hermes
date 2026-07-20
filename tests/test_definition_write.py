@@ -578,3 +578,80 @@ def test_set_workflow_schedule_rejects_non_workflow_paths(tmp_path: Path) -> Non
     )
 
     assert result.error == "path_not_allowed"
+
+
+def test_extension_write_is_kept_when_the_quality_rubric_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Quality scores publishability; it does not decide validity.
+
+    Reverting on it makes a multi-file extension change impossible to build up
+    incrementally: the README written to fix "rich-readme" is deleted for not
+    having fixed it yet.
+    """
+    extension = tmp_path / "extensions" / "models" / "owner" / "thing"
+    extension.mkdir(parents=True)
+    (extension / "manifest.yaml").write_text("name: thing\n")
+    target = extension / "README.md"
+    target.write_text("old\n")
+
+    monkeypatch.setattr(
+        "swamp_first_hermes.definition_write.run_swamp_command",
+        lambda *a, **k: _FakeResult(
+            False, {"status": "failed", "missing": ["rich-readme"]}, "process_error"
+        ),
+    )
+
+    result = write_definition(
+        tmp_path, "extensions/models/owner/thing/README.md", "# much better\n"
+    )
+
+    assert result.ok is True
+    assert result.validated is False
+    assert result.reverted is False
+    assert result.deleted is False
+    assert result.validation_data == {"status": "failed", "missing": ["rich-readme"]}
+    assert target.read_text() == "# much better\n"
+
+
+def test_model_write_still_reverts_when_validation_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Schema validation stays fail-closed for models and workflows."""
+    target = tmp_path / "models" / "thing.yaml"
+    target.parent.mkdir(parents=True)
+    target.write_text("name: original\n")
+
+    monkeypatch.setattr(
+        "swamp_first_hermes.definition_write.run_swamp_command",
+        lambda *a, **k: _FakeResult(False, {"error": "bad schema"}, "process_error"),
+    )
+
+    result = write_definition(
+        tmp_path, "models/thing.yaml", "name: broken\n", definition_name="thing"
+    )
+
+    assert result.ok is False
+    assert result.reverted is True
+    assert target.read_text() == "name: original\n"
+
+
+def test_workflow_write_still_reverts_when_validation_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    target = tmp_path / "workflows" / "nightly.yaml"
+    target.parent.mkdir(parents=True)
+    target.write_text("name: original\n")
+
+    monkeypatch.setattr(
+        "swamp_first_hermes.definition_write.run_swamp_command",
+        lambda *a, **k: _FakeResult(False, {"error": "bad schema"}, "process_error"),
+    )
+
+    result = write_definition(
+        tmp_path, "workflows/nightly.yaml", "name: broken\n", definition_name="nightly"
+    )
+
+    assert result.ok is False
+    assert result.reverted is True
+    assert target.read_text() == "name: original\n"

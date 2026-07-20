@@ -382,6 +382,21 @@ def _write_validate_or_revert(
     if validation.ok:
         return DefinitionWriteResult(True, True, False, False, validation.data, None)
 
+    # An extension's quality rubric scores how publishable a package is; it is
+    # not a correctness check, and a source file is not invalid for scoring
+    # badly. Reverting on it makes the whole extension the unit of work: a
+    # README that fails "rich-readme" gets deleted for not yet having fixed the
+    # score it was written to fix, so a multi-file change can never be built up
+    # one file at a time. Keep the write and report the score instead.
+    #
+    # Model and workflow validation stays fail-closed below — those are real
+    # schema checks, and a live ``swamp serve`` hot-reloads workflow files with
+    # no grace period.
+    if kind == "extension":
+        return DefinitionWriteResult(
+            True, False, False, False, validation.data, validation.error
+        )
+
     error = validation.error or "validation_failed"
     if existed_before:
         try:
