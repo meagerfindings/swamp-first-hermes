@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 import json
 import math
 import os
+import re
 import subprocess
 from typing import Any
 
@@ -127,6 +129,44 @@ class SwampCliResult:
     error: str | None
 
 
+# Commands that accept caller-supplied ``--input name=value`` pairs. Model
+# methods and workflows declare their own argument schemas, so the values are
+# opaque here; each pair becomes one discrete argv element and is never
+# concatenated into a shell string.
+_COMMANDS_ACCEPTING_INPUTS = frozenset({"model_method_run", "workflow_run"})
+
+# An input name is restricted to the shape Swamp's own argument names take.
+# The value is left unconstrained apart from rejecting NUL, since it may
+# legitimately contain paths, URLs, JSON, or spaces.
+_INPUT_NAME_PATTERN = re.compile(r"\A[A-Za-z_][A-Za-z0-9_.\-]*\Z")
+
+
+def _build_input_arguments(
+    inputs: Mapping[str, object] | None,
+) -> tuple[str, ...]:
+    """Return validated ``--input name=value`` argv elements."""
+    if not inputs:
+        return ()
+    if not isinstance(inputs, Mapping):
+        raise ValueError("Swamp inputs must be a mapping")
+    arguments: list[str] = []
+    for name, value in inputs.items():
+        if not isinstance(name, str) or not _INPUT_NAME_PATTERN.match(name):
+            raise ValueError("Swamp input name is invalid")
+        if isinstance(value, bool):
+            rendered = "true" if value else "false"
+        elif isinstance(value, (int, float)):
+            rendered = str(value)
+        elif isinstance(value, str):
+            rendered = value
+        else:
+            raise ValueError("Swamp input value is invalid")
+        if "\x00" in rendered:
+            raise ValueError("Swamp input value is invalid")
+        arguments.extend(("--input", f"{name}={rendered}"))
+    return tuple(arguments)
+
+
 def _is_safe_positional_argument(value: object) -> bool:
     """A caller-supplied positional argument safe to pass straight to argv.
 
@@ -142,7 +182,11 @@ def _is_safe_positional_argument(value: object) -> bool:
     )
 
 
-def build_command(command: str, *positional_arguments: str) -> tuple[str, ...]:
+def build_command(
+    command: str,
+    *positional_arguments: str,
+    inputs: Mapping[str, object] | None = None,
+) -> tuple[str, ...]:
     """Build the fixed JSON-output argument vector for an allowed command.
 
     ``positional_arguments`` are caller-supplied values appended after the
@@ -160,7 +204,16 @@ def build_command(command: str, *positional_arguments: str) -> tuple[str, ...]:
         raise ValueError("Swamp command received the wrong number of arguments")
     if not all(_is_safe_positional_argument(value) for value in positional_arguments):
         raise ValueError("Swamp command received an invalid argument")
-    return ("swamp", *command_arguments, *positional_arguments, "--json")
+    if inputs and command not in _COMMANDS_ACCEPTING_INPUTS:
+        raise ValueError("Swamp command does not accept inputs")
+    input_arguments = _build_input_arguments(inputs)
+    return (
+        "swamp",
+        *command_arguments,
+        *positional_arguments,
+        *input_arguments,
+        "--json",
+    )
 
 
 def run_swamp_command(
@@ -168,6 +221,7 @@ def run_swamp_command(
     *positional_arguments: str,
     repository_path: str | os.PathLike[str] | None = None,
     timeout: int | float | None = _UNSET_TIMEOUT,
+    inputs: Mapping[str, object] | None = None,
 ) -> SwampCliResult:
     """Run an allowed command and return its parsed JSON result.
 
@@ -216,7 +270,7 @@ def run_swamp_command(
         return SwampCliResult(ok=False, data=None, error="command_not_allowed")
 
     try:
-        arguments = build_command(command, *positional_arguments)
+        arguments = build_command(command, *positional_arguments, inputs=inputs)
     except ValueError:
         return SwampCliResult(ok=False, data=None, error="invalid_argument")
 

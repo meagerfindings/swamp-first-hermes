@@ -346,3 +346,79 @@ def test_non_allowlisted_commands_are_rejected_without_running_subprocess(
 def test_build_command_rejects_non_allowlisted_commands() -> None:
     with pytest.raises(ValueError, match="not allowed"):
         build_command("delete")
+
+
+# --- method/workflow inputs ---------------------------------------------------
+
+
+def test_build_command_appends_input_pairs_as_discrete_argv_elements() -> None:
+    """Each ``--input name=value`` pair is its own argv element.
+
+    The git-workspace model takes its target repository as a method argument,
+    so a tool that cannot pass inputs cannot drive it at all.
+    """
+    command = build_command(
+        "model_method_run",
+        "unifi-release-safety-repo",
+        "status",
+        inputs={"project": "owner/repo", "localPath": "/opt/data/repo"},
+    )
+    assert command[:4] == (
+        "swamp",
+        "model",
+        "method",
+        "run",
+    )
+    assert "--input" in command
+    assert "project=owner/repo" in command
+    assert "localPath=/opt/data/repo" in command
+    assert command[-1] == "--json"
+
+
+def test_input_values_containing_shell_metacharacters_stay_one_argv_element() -> None:
+    command = build_command(
+        "model_method_run",
+        "model",
+        "method",
+        inputs={"message": "fix; rm -rf / && echo $(whoami)"},
+    )
+    assert "message=fix; rm -rf / && echo $(whoami)" in command
+
+
+def test_build_command_rejects_inputs_for_commands_that_do_not_accept_them() -> None:
+    with pytest.raises(ValueError):
+        build_command("model_search", inputs={"project": "owner/repo"})
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["--flag", "has space", "", "1leading", "semi;colon", "new\nline"],
+)
+def test_build_command_rejects_invalid_input_names(name: str) -> None:
+    with pytest.raises(ValueError):
+        build_command("model_method_run", "m", "meth", inputs={name: "value"})
+
+
+def test_build_command_rejects_input_values_containing_nul() -> None:
+    with pytest.raises(ValueError):
+        build_command("model_method_run", "m", "meth", inputs={"a": "b\x00c"})
+
+
+def test_build_command_renders_scalar_input_values() -> None:
+    command = build_command(
+        "model_method_run", "m", "meth", inputs={"n": 3, "flag": True}
+    )
+    assert "n=3" in command
+    assert "flag=true" in command
+
+
+def test_build_command_omits_input_arguments_when_inputs_is_empty() -> None:
+    assert build_command("model_method_run", "m", "meth", inputs={}) == (
+        "swamp",
+        "model",
+        "method",
+        "run",
+        "m",
+        "meth",
+        "--json",
+    )

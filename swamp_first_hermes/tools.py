@@ -120,6 +120,16 @@ SWAMP_MODEL_METHOD_RUN_SCHEMA = {
         {
             "model": {"type": "string", "description": "The model instance name."},
             "method": {"type": "string", "description": "The method name to execute."},
+            "inputs": {
+                "type": "object",
+                "description": (
+                    "The method's own arguments, as name/value pairs — the "
+                    "equivalent of --input name=value. Check the method's "
+                    "declared arguments; many require values here. Put them "
+                    "in this object, never in the method name."
+                ),
+                "additionalProperties": {"type": "string"},
+            },
         },
         required=("model", "method"),
     ),
@@ -159,7 +169,17 @@ SWAMP_WORKFLOW_RUN_SCHEMA = {
     "name": "swamp_workflow_run",
     "description": "Execute an existing Swamp workflow by name.",
     "parameters": _parameters(
-        {"name": {"type": "string", "description": "The workflow name to run."}},
+        {
+            "name": {"type": "string", "description": "The workflow name to run."},
+            "inputs": {
+                "type": "object",
+                "description": (
+                    "The workflow's own arguments, as name/value pairs — the "
+                    "equivalent of --input name=value."
+                ),
+                "additionalProperties": {"type": "string"},
+            },
+        },
         required=("name",),
     ),
 }
@@ -409,14 +429,26 @@ def _call_swamp_command(
             )
         positional.append(value)
 
+    inputs = arguments.get("inputs")
+    if inputs is not None and not isinstance(inputs, Mapping):
+        return json.dumps(
+            {"ok": False, "data": None, "error": "invalid_argument"},
+            ensure_ascii=False,
+        )
+
     repository_path = arguments.get("repository_path")
-    timeout = arguments.get("timeout", DEFAULT_TIMEOUT_SECONDS)
+    # Omitting timeout lets the adapter apply its per-command budget; passing a
+    # fixed default here would silently cap long commands like extension_push.
+    timeout_arguments = (
+        {"timeout": arguments["timeout"]} if arguments.get("timeout") is not None else {}
+    )
     try:
         result = run_swamp_command(
             command,
             *positional,
             repository_path=repository_path,
-            timeout=timeout,
+            inputs=inputs,
+            **timeout_arguments,
         )
         payload = {"ok": result.ok, "data": result.data, "error": result.error}
     except Exception:

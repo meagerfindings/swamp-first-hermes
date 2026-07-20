@@ -194,3 +194,60 @@ def test_wrapper_normalizes_an_unexpected_exception(
     payload = json.loads(swamp_model_validate({}))
 
     assert payload == {"ok": False, "data": None, "error": "execution_error"}
+
+
+def test_model_method_run_forwards_inputs_to_the_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tool must pass method arguments through, not drop them."""
+    captured: dict[str, object] = {}
+
+    def fake_runner(command: str, *positional: str, **kwargs: object):
+        captured["command"] = command
+        captured["positional"] = positional
+        captured["inputs"] = kwargs.get("inputs")
+        return _FakeResult(True, {"ok": 1}, None)
+
+    monkeypatch.setattr("swamp_first_hermes.tools.run_swamp_command", fake_runner)
+
+    swamp_model_method_run(
+        {
+            "model": "unifi-release-safety-repo",
+            "method": "status",
+            "inputs": {"project": "owner/repo", "localPath": "/opt/data/repo"},
+        }
+    )
+
+    assert captured["positional"] == ("unifi-release-safety-repo", "status")
+    assert captured["inputs"] == {
+        "project": "owner/repo",
+        "localPath": "/opt/data/repo",
+    }
+
+
+def test_model_method_run_rejects_non_mapping_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "swamp_first_hermes.tools.run_swamp_command",
+        lambda *a, **k: _FakeResult(True, {}, None),
+    )
+    payload = json.loads(
+        swamp_model_method_run({"model": "m", "method": "x", "inputs": "project=a"})
+    )
+    assert payload["error"] == "invalid_argument"
+
+
+def test_command_timeout_is_not_capped_by_the_tool_layer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fixed default here would silently cap long commands like push."""
+    captured: dict[str, object] = {}
+
+    def fake_runner(command: str, *positional: str, **kwargs: object):
+        captured["timeout_passed"] = "timeout" in kwargs
+        return _FakeResult(True, {}, None)
+
+    monkeypatch.setattr("swamp_first_hermes.tools.run_swamp_command", fake_runner)
+    swamp_model_method_run({"model": "m", "method": "x"})
+    assert captured["timeout_passed"] is False
