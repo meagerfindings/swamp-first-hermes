@@ -284,11 +284,38 @@ def _validate_repository(repository_path: object) -> str | None:
         return None
 
 
+def _nearest_manifest(normalized: str, repository_directory: str) -> str | None:
+    """Find the manifest governing ``normalized``, searching upward.
+
+    A repository holding many extensions has no manifest at its root — each
+    extension carries its own. Walking up from the written file finds that
+    manifest, so an extension write does not have to restate a path the target
+    already implies. Returns a repository-relative path, or ``None`` when no
+    manifest exists between the file and the repository root.
+    """
+    directory = os.path.dirname(normalized)
+    while True:
+        candidate_relative = (
+            os.path.join(directory, _DEFAULT_MANIFEST_NAME)
+            if directory
+            else _DEFAULT_MANIFEST_NAME
+        )
+        candidate_real = _resolve_within_repository(
+            repository_directory, candidate_relative
+        )
+        if candidate_real is not None and os.path.isfile(candidate_real):
+            return candidate_relative
+        if not directory:
+            return None
+        directory = os.path.dirname(directory)
+
+
 def _run_validation(
     kind: str,
     definition_name: str | None,
     repository_directory: str,
     timeout: int | float,
+    normalized: str | None = None,
 ):
     """Run the validate/quality check matching ``kind``.
 
@@ -303,7 +330,10 @@ def _run_validation(
         return run_swamp_command(
             "workflow_validate", definition_name, repository_path=repository_directory, timeout=timeout
         )
-    manifest_target = definition_name or _DEFAULT_MANIFEST_NAME
+    manifest_target = definition_name
+    if not manifest_target and normalized is not None:
+        manifest_target = _nearest_manifest(normalized, repository_directory)
+    manifest_target = manifest_target or _DEFAULT_MANIFEST_NAME
     return run_swamp_command(
         "extension_quality", manifest_target, repository_path=repository_directory, timeout=timeout
     )
@@ -317,6 +347,7 @@ def _write_validate_or_revert(
     definition_name: str | None,
     new_content: str,
     timeout: int | float,
+    normalized: str | None = None,
 ) -> DefinitionWriteResult:
     existed_before = os.path.isfile(real_candidate)
     previous_content: str | None = None
@@ -334,7 +365,9 @@ def _write_validate_or_revert(
     except OSError:
         return DefinitionWriteResult(False, False, False, False, None, "write_error")
 
-    validation = _run_validation(kind, definition_name, repository_directory, timeout)
+    validation = _run_validation(
+        kind, definition_name, repository_directory, timeout, normalized
+    )
     if validation.ok:
         return DefinitionWriteResult(True, True, False, False, validation.data, None)
 
@@ -367,9 +400,10 @@ def write_definition(
     ``relative_path`` must resolve inside the repository and match a known
     Swamp definition convention. ``definition_name`` is the model or workflow
     instance name to validate afterward (required for model/workflow paths);
-    for extension paths it is the manifest path to score, defaulting to
-    ``manifest.yaml`` at the repository root. The write is reverted (or, for
-    a brand-new file, deleted) if validation fails.
+    for extension paths it is the manifest path to score, defaulting to the
+    nearest ``manifest.yaml`` at or above the written file, and falling back to
+    the repository root. The write is reverted (or, for a brand-new file,
+    deleted) if validation fails.
     """
     repository_directory = _validate_repository(repository_path)
     if repository_directory is None:
@@ -412,6 +446,7 @@ def write_definition(
         definition_name=definition_name,
         new_content=content,
         timeout=timeout,
+        normalized=normalized,
     )
 
 

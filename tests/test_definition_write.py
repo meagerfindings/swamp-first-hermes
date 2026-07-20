@@ -371,6 +371,67 @@ def test_extension_path_defaults_definition_name_to_manifest_yaml(
     assert captured["positional"] == ("manifest.yaml",)
 
 
+def test_extension_path_scores_the_nearest_manifest_not_the_repository_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A repository of many extensions has no root manifest to fall back on.
+
+    Defaulting to the repository root made every extension write fail
+    validation and revert, which reads as a broken tool rather than a missing
+    argument.
+    """
+    extension = tmp_path / "extensions" / "models" / "owner" / "thing"
+    extension.mkdir(parents=True)
+    (extension / "manifest.yaml").write_text("name: thing\n")
+    captured: dict[str, object] = {}
+
+    def fake_runner(command: str, *positional: str, **kwargs: object):
+        captured["positional"] = positional
+        return _FakeResult(True, {}, None)
+
+    monkeypatch.setattr(
+        "swamp_first_hermes.definition_write.run_swamp_command", fake_runner
+    )
+
+    result = write_definition(
+        tmp_path,
+        "extensions/models/owner/thing/model.ts",
+        "export const x = 1;\n",
+    )
+
+    assert result.ok is True
+    assert captured["positional"] == (
+        "extensions/models/owner/thing/manifest.yaml",
+    )
+
+
+def test_explicit_definition_name_still_wins_over_manifest_discovery(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    extension = tmp_path / "extensions" / "models" / "owner" / "thing"
+    extension.mkdir(parents=True)
+    (extension / "manifest.yaml").write_text("name: thing\n")
+    captured: dict[str, object] = {}
+
+    def fake_runner(command: str, *positional: str, **kwargs: object):
+        captured["positional"] = positional
+        return _FakeResult(True, {}, None)
+
+    monkeypatch.setattr(
+        "swamp_first_hermes.definition_write.run_swamp_command", fake_runner
+    )
+
+    result = write_definition(
+        tmp_path,
+        "extensions/models/owner/thing/model.ts",
+        "export const x = 1;\n",
+        definition_name="chosen/manifest.yaml",
+    )
+
+    assert result.ok is True
+    assert captured["positional"] == ("chosen/manifest.yaml",)
+
+
 # --- set_workflow_schedule ----------------------------------------------------
 
 
