@@ -273,7 +273,7 @@ def test_repository_path_is_normalized_once_before_subprocess(
     assert runner.call_args.kwargs["cwd"] == str(tmp_path)
 
 
-def test_nonzero_exit_is_normalized_without_stderr_content(
+def test_nonzero_exit_without_body_is_process_failed_without_stderr_content(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runner = Mock(
@@ -285,8 +285,61 @@ def test_nonzero_exit_is_normalized_without_stderr_content(
 
     result = run_swamp_command("model_search")
 
-    assert result == SwampCliResult(ok=False, data=None, error="process_error")
+    # A non-zero exit with no JSON result body is the process itself failing,
+    # not an actionable rejection — surfaced as ``process_failed`` so the
+    # caller can tell the two apart, with stderr still withheld.
+    assert result == SwampCliResult(ok=False, data=None, error="process_failed")
     assert "private diagnostic" not in repr(result)
+
+
+def test_nonzero_exit_with_json_body_surfaces_the_body_as_process_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = Mock(
+        return_value=subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout='{"status": "invalid", "reason": "unknown model"}',
+            stderr="",
+        )
+    )
+    monkeypatch.setattr("swamp_first_hermes.swamp_cli.subprocess.run", runner)
+
+    result = run_swamp_command("model_validate", "some-model")
+
+    # A non-zero exit that still wrote an actionable JSON body is a real
+    # rejection: the body is surfaced in ``data`` under ``process_error``.
+    assert result == SwampCliResult(
+        ok=False,
+        data={"status": "invalid", "reason": "unknown model"},
+        error="process_error",
+    )
+
+
+def test_validate_fatal_bundle_error_is_process_failed_and_hides_local_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Models a swamp ``model validate`` fatal: the CLI exits non-zero and writes
+    # a ``[FTL]`` diagnostic — containing an absolute local path and a private
+    # extension identifier — to stderr, with no JSON on stdout. The adapter must
+    # report a distinct ``process_failed`` (not an opaque ``process_error`` that
+    # looks like a rejection) and must not leak the diagnostic.
+    fatal_stderr = (
+        "[FTL] error: Error: Bundle has no extension export: "
+        "/opt/data/swamp-hub/.swamp/bundles/e9c5c01e/@acme/private-writer/model.js"
+    )
+    runner = Mock(
+        return_value=subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr=fatal_stderr
+        )
+    )
+    monkeypatch.setattr("swamp_first_hermes.swamp_cli.subprocess.run", runner)
+
+    result = run_swamp_command("model_validate", "some-model")
+
+    assert result == SwampCliResult(ok=False, data=None, error="process_failed")
+    assert "/opt/data" not in repr(result)
+    assert "private-writer" not in repr(result)
 
 
 def test_malformed_json_is_normalized(

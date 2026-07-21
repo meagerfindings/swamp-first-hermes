@@ -119,9 +119,14 @@ class SwampCliResult:
 
     ``error`` is one of ``None``, ``command_not_allowed``, ``invalid_argument``,
     ``invalid_repository_path``, ``invalid_timeout``, ``process_error``,
-    ``malformed_json``, ``executable_not_found``, ``execution_error``, or
-    ``timeout``. Error details and process output are intentionally omitted so
-    local environment values cannot escape through this boundary.
+    ``process_failed``, ``malformed_json``, ``executable_not_found``,
+    ``execution_error``, or ``timeout``. A non-zero exit that still wrote an
+    actionable JSON result body is ``process_error`` (the body is in ``data``);
+    a non-zero exit with no result body — the swamp process itself failing, e.g.
+    a broken extension bundle or environment — is ``process_failed`` (``data``
+    is ``None``). Error details and raw process output are intentionally omitted
+    so local environment values cannot escape through this boundary; only the
+    failure class is surfaced, never stderr text.
     """
 
     ok: bool
@@ -237,7 +242,14 @@ def run_swamp_command(
     returned as ``data`` alongside ``error="process_error"``. Swamp reports
     real, actionable rejections this way (an unknown model name, a duplicate
     version); discarding them makes a correctly refused operation and a broken
-    environment indistinguishable to the caller.
+    environment indistinguishable to the caller. When the CLI exits non-zero
+    with no JSON body — it crashed or fatally errored (a broken extension
+    bundle, a missing export, an unusable environment) and wrote only a
+    stderr diagnostic — the result is ``error="process_failed"`` with
+    ``data=None``. That diagnostic is not surfaced (it can carry absolute
+    local paths and private identifiers), but the distinct code lets the
+    caller tell an environment/tooling failure apart from a plain rejection
+    instead of seeing an opaque ``process_error`` for both.
     """
     if timeout is _UNSET_TIMEOUT:
         timeout = _COMMAND_TIMEOUT_SECONDS.get(command, DEFAULT_TIMEOUT_SECONDS)
@@ -291,11 +303,15 @@ def run_swamp_command(
         return SwampCliResult(ok=False, data=None, error="execution_error")
 
     if completed.returncode != 0:
-        return SwampCliResult(
-            ok=False,
-            data=_parse_json_documents(completed.stdout or ""),
-            error="process_error",
-        )
+        body = _parse_json_documents(completed.stdout or "")
+        # A non-zero exit with an actionable JSON body is a real rejection
+        # (unknown model, duplicate version) — surface the body. A non-zero
+        # exit with no body is the swamp process itself failing (a crash, a
+        # broken bundle); mark it distinctly so it is not mistaken for a
+        # rejection. stderr stays withheld either way (boundary).
+        if body is None:
+            return SwampCliResult(ok=False, data=None, error="process_failed")
+        return SwampCliResult(ok=False, data=body, error="process_error")
 
     data = _parse_json_documents(completed.stdout or "")
     if data is None:

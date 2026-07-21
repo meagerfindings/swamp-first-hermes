@@ -196,6 +196,23 @@ def test_wrapper_normalizes_an_unexpected_exception(
     assert payload == {"ok": False, "data": None, "error": "execution_error"}
 
 
+def test_model_validate_surfaces_process_failed_on_a_fatal_swamp_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # When swamp validate fatally errors with no result body (e.g. a broken
+    # extension bundle), the adapter returns ``process_failed``. The tool must
+    # pass that class through so the caller sees an environment/tooling failure
+    # rather than an opaque ``process_error`` that reads like a model rejection.
+    def fake_runner(*_args: object, **_kwargs: object):
+        return _FakeResult(False, None, "process_failed")
+
+    monkeypatch.setattr("swamp_first_hermes.tools.run_swamp_command", fake_runner)
+
+    payload = json.loads(swamp_model_validate({"name": "some-model"}))
+
+    assert payload == {"ok": False, "data": None, "error": "process_failed"}
+
+
 def test_model_method_run_forwards_inputs_to_the_adapter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
