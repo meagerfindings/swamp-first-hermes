@@ -25,10 +25,17 @@ from swamp_first_hermes.definition_write import (
 
 
 class _FakeResult:
-    def __init__(self, ok: bool, data: object = None, error: str | None = None) -> None:
+    def __init__(
+        self,
+        ok: bool,
+        data: object = None,
+        error: str | None = None,
+        diagnostics: str | None = None,
+    ) -> None:
         self.ok = ok
         self.data = data
         self.error = error
+        self.diagnostics = diagnostics
 
 
 def _stub_validate_ok(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -655,3 +662,82 @@ def test_workflow_write_still_reverts_when_validation_fails(
     assert result.ok is False
     assert result.reverted is True
     assert target.read_text() == "name: original\n"
+
+
+# --- rollback diagnostics -----------------------------------------------------
+
+
+def test_reverted_model_write_surfaces_scrubbed_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A caller learns *why* a write was reverted via the already-scrubbed
+    ``diagnostics`` string, not just the opaque error code."""
+    target = tmp_path / "models" / "thing.yaml"
+    target.parent.mkdir(parents=True)
+    target.write_text("name: original\n")
+
+    monkeypatch.setattr(
+        "swamp_first_hermes.definition_write.run_swamp_command",
+        lambda *a, **k: _FakeResult(
+            False, None, "process_failed", "thing.yaml:3:5 error: bad type"
+        ),
+    )
+
+    result = write_definition(
+        tmp_path, "models/thing.yaml", "name: broken\n", definition_name="thing"
+    )
+
+    assert result.ok is False
+    assert result.reverted is True
+    assert result.diagnostics == "thing.yaml:3:5 error: bad type"
+
+
+def test_deleted_new_workflow_write_surfaces_scrubbed_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        "swamp_first_hermes.definition_write.run_swamp_command",
+        lambda *a, **k: _FakeResult(
+            False, None, "process_failed", "nightly.yaml:1:1 error: bad schema"
+        ),
+    )
+
+    result = write_definition(
+        tmp_path, "workflows/nightly.yaml", "name: broken\n", definition_name="nightly"
+    )
+
+    assert result.ok is False
+    assert result.deleted is True
+    assert result.diagnostics == "nightly.yaml:1:1 error: bad schema"
+
+
+def test_successful_write_has_no_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_validate_ok(monkeypatch)
+
+    result = write_definition(
+        tmp_path, "models/thing.yaml", "good: content\n", definition_name="thing"
+    )
+
+    assert result.ok is True
+    assert result.diagnostics is None
+
+
+def test_reverted_write_with_no_diagnostics_available_stays_none(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A validation failure outside the diagnostics allowlist (or one that
+    produced no stderr) reverts exactly as before, with diagnostics unset."""
+    target = tmp_path / "models" / "thing.yaml"
+    target.parent.mkdir(parents=True)
+    target.write_text("name: original\n")
+    _stub_validate_fail(monkeypatch, error="process_error")
+
+    result = write_definition(
+        tmp_path, "models/thing.yaml", "name: broken\n", definition_name="thing"
+    )
+
+    assert result.ok is False
+    assert result.reverted is True
+    assert result.diagnostics is None

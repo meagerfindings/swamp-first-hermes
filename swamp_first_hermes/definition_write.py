@@ -80,7 +80,10 @@ class DefinitionWriteResult:
     existing content was restored after a failed validation; ``deleted`` is
     ``True`` only when a newly created file was removed after a failed
     validation. ``validation_data`` carries the validator's JSON payload when
-    available.
+    available. ``diagnostics`` carries the already-scrubbed
+    ``SwampCliResult.diagnostics`` string from the validate/quality call that
+    triggered a revert or delete, when one was available; it is ``None`` on
+    success and on any failure that produced no diagnostics.
     """
 
     ok: bool
@@ -89,6 +92,7 @@ class DefinitionWriteResult:
     deleted: bool
     validation_data: Any | None
     error: str | None
+    diagnostics: str | None = None
 
 
 def _read_manifest_declared_paths(repository_directory: str) -> dict[str, str]:
@@ -397,20 +401,34 @@ def _write_validate_or_revert(
             True, False, False, False, validation.data, validation.error
         )
 
+    # Captured only here, on the fail-closed model/workflow lane that actually
+    # reverts or deletes: this is the "why was my write undone" the caller
+    # needs. ``validation.diagnostics`` is already the scrubbed string (or
+    # ``None``) produced by ``run_swamp_command`` — never raw stderr — and is
+    # passed through unchanged, never re-derived from anything unscrubbed.
     error = validation.error or "validation_failed"
+    diagnostics = validation.diagnostics
     if existed_before:
         try:
             with open(real_candidate, "w", encoding="utf-8") as handle:
                 handle.write(previous_content or "")
         except OSError:
-            return DefinitionWriteResult(False, True, False, False, validation.data, "revert_error")
-        return DefinitionWriteResult(False, True, True, False, validation.data, error)
+            return DefinitionWriteResult(
+                False, True, False, False, validation.data, "revert_error", diagnostics
+            )
+        return DefinitionWriteResult(
+            False, True, True, False, validation.data, error, diagnostics
+        )
 
     try:
         os.remove(real_candidate)
     except OSError:
-        return DefinitionWriteResult(False, True, False, False, validation.data, "revert_error")
-    return DefinitionWriteResult(False, True, False, True, validation.data, error)
+        return DefinitionWriteResult(
+            False, True, False, False, validation.data, "revert_error", diagnostics
+        )
+    return DefinitionWriteResult(
+        False, True, False, True, validation.data, error, diagnostics
+    )
 
 
 def write_definition(

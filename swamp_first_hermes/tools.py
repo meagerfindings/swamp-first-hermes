@@ -291,10 +291,13 @@ SWAMP_DEFINITION_WRITE_SCHEMA = {
         "model.ts / *_report.ts / manifest.yaml). Every write is "
         "immediately validated (model/workflow validate, or extension "
         "quality); a failed validation reverts the previous content, or "
-        "deletes the file if it did not exist before. A workflow write that "
-        "sets a live trigger.schedule value is rejected outright — use "
-        "swamp_workflow_set_schedule for that, which requires separate "
-        "human confirmation."
+        "deletes the file if it did not exist before. When a revert or "
+        "delete happens on a fatal failure with no result body, a scrubbed "
+        "diagnostics field (file, line, lint rule, fix hint; local paths "
+        "reduced to repository-relative) is included so the revert can be "
+        "understood. A workflow write that sets a live trigger.schedule "
+        "value is rejected outright — use swamp_workflow_set_schedule for "
+        "that, which requires separate human confirmation."
     ),
     "parameters": {
         "type": "object",
@@ -623,6 +626,7 @@ def swamp_definition_write(args: dict[str, object], **kwargs: Any) -> str:
             "deleted": result.deleted,
             "data": result.validation_data,
             "error": result.error,
+            "diagnostics": result.diagnostics,
         }
     except Exception:
         payload = {
@@ -632,6 +636,7 @@ def swamp_definition_write(args: dict[str, object], **kwargs: Any) -> str:
             "deleted": False,
             "data": None,
             "error": "execution_error",
+            "diagnostics": None,
         }
     return json.dumps(payload, ensure_ascii=False)
 
@@ -649,6 +654,7 @@ def swamp_workflow_set_schedule(args: dict[str, object], **kwargs: Any) -> str:
                 "deleted": False,
                 "data": None,
                 "error": "confirmation_required",
+                "diagnostics": None,
             },
             ensure_ascii=False,
         )
@@ -667,6 +673,7 @@ def swamp_workflow_set_schedule(args: dict[str, object], **kwargs: Any) -> str:
             "deleted": result.deleted,
             "data": result.validation_data,
             "error": result.error,
+            "diagnostics": result.diagnostics,
         }
     except Exception:
         payload = {
@@ -676,5 +683,6 @@ def swamp_workflow_set_schedule(args: dict[str, object], **kwargs: Any) -> str:
             "deleted": False,
             "data": None,
             "error": "execution_error",
+            "diagnostics": None,
         }
     return json.dumps(payload, ensure_ascii=False)

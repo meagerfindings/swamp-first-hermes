@@ -11,16 +11,32 @@ from swamp_first_hermes.tools import swamp_definition_write, swamp_workflow_set_
 
 
 class _FakeValidateResult:
-    def __init__(self, ok: bool, data: object = None, error: str | None = None) -> None:
+    def __init__(
+        self,
+        ok: bool,
+        data: object = None,
+        error: str | None = None,
+        diagnostics: str | None = None,
+    ) -> None:
         self.ok = ok
         self.data = data
         self.error = error
+        self.diagnostics = diagnostics
 
 
 def _stub_validate_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "swamp_first_hermes.definition_write.run_swamp_command",
         lambda *a, **k: _FakeValidateResult(True, {"valid": True}, None),
+    )
+
+
+def _stub_validate_fail_with_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, diagnostics: str
+) -> None:
+    monkeypatch.setattr(
+        "swamp_first_hermes.definition_write.run_swamp_command",
+        lambda *a, **k: _FakeValidateResult(False, None, "process_failed", diagnostics),
     )
 
 
@@ -47,6 +63,7 @@ def test_definition_write_handler_succeeds_and_serializes_result(
         "deleted": False,
         "data": {"valid": True},
         "error": None,
+        "diagnostics": None,
     }
     assert (tmp_path / "models" / "thing.yaml").read_text() == "name: thing\n"
 
@@ -83,6 +100,7 @@ def test_definition_write_handler_rejects_a_live_schedule(tmp_path: Path) -> Non
         "deleted": False,
         "data": None,
         "error": "live_schedule_rejected",
+        "diagnostics": None,
     }
     assert not (tmp_path / "workflows" / "nightly.yaml").exists()
 
@@ -103,6 +121,33 @@ def test_definition_write_handler_normalizes_an_unexpected_exception(
 
     assert payload["ok"] is False
     assert payload["error"] == "execution_error"
+    assert payload["diagnostics"] is None
+
+
+def test_definition_write_handler_surfaces_scrubbed_diagnostics_on_revert(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The scrubbed diagnostics from the reverting validate call reach the
+    JSON payload a caller actually sees, not just the internal result."""
+    target = tmp_path / "models" / "thing.yaml"
+    target.parent.mkdir(parents=True)
+    target.write_text("name: original\n")
+    _stub_validate_fail_with_diagnostics(monkeypatch, "thing.yaml:3:5 error: bad type")
+
+    payload = json.loads(
+        swamp_definition_write(
+            {
+                "repository_path": str(tmp_path),
+                "relative_path": "models/thing.yaml",
+                "content": "name: broken\n",
+                "definition_name": "thing",
+            }
+        )
+    )
+
+    assert payload["ok"] is False
+    assert payload["reverted"] is True
+    assert payload["diagnostics"] == "thing.yaml:3:5 error: bad type"
 
 
 def test_set_schedule_handler_requires_confirmation(tmp_path: Path) -> None:
@@ -123,6 +168,7 @@ def test_set_schedule_handler_requires_confirmation(tmp_path: Path) -> None:
         "deleted": False,
         "data": None,
         "error": "confirmation_required",
+        "diagnostics": None,
     }
 
 
@@ -165,7 +211,33 @@ def test_set_schedule_handler_proceeds_once_confirmed(
     )
 
     assert payload["ok"] is True
+    assert payload["diagnostics"] is None
     assert '"0 5 * * *"' in target.read_text()
+
+
+def test_set_schedule_handler_surfaces_scrubbed_diagnostics_on_revert(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    target = tmp_path / "workflows" / "nightly.yaml"
+    target.parent.mkdir(parents=True)
+    target.write_text("name: nightly\n")
+    _stub_validate_fail_with_diagnostics(monkeypatch, "nightly.yaml:1:1 error: bad schema")
+
+    payload = json.loads(
+        swamp_workflow_set_schedule(
+            {
+                "repository_path": str(tmp_path),
+                "relative_path": "workflows/nightly.yaml",
+                "definition_name": "nightly",
+                "cron_expression": "0 5 * * *",
+                "confirmed": True,
+            }
+        )
+    )
+
+    assert payload["ok"] is False
+    assert payload["reverted"] is True
+    assert payload["diagnostics"] == "nightly.yaml:1:1 error: bad schema"
 
 
 def test_set_schedule_handler_normalizes_an_unexpected_exception(
@@ -190,3 +262,4 @@ def test_set_schedule_handler_normalizes_an_unexpected_exception(
 
     assert payload["ok"] is False
     assert payload["error"] == "execution_error"
+    assert payload["diagnostics"] is None
