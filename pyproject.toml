@@ -1,8 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "swamp-first-hermes"
 version = "0.3.0"
+description = "A Hermes directory/entry-point plugin that routes agent capability through the Swamp CLI."
 requires-python = ">=3.11"
 dependencies = ["PyYAML>=6"]
+
+# Registers the plugin via Hermes's entry-point loader (group `hermes_agent.plugins`),
+# so `pip install`ing this package makes Hermes discover it without a directory drop.
+# The value is a bare module reference; Hermes calls `swamp_first_hermes.register(ctx)`.
+# NOTE: Hermes does not read plugin.yaml for entry-point installs, so `hermes plugins
+# list` shows blank version/description/provides_* for pip-installed instances (a
+# Hermes-side limitation); tool/hook registration is unaffected.
+[project.entry-points."hermes_agent.plugins"]
+swamp_first_hermes = "swamp_first_hermes"
+
+[tool.setuptools.packages.find]
+include = ["swamp_first_hermes*"]
+
+[tool.setuptools.package-data]
+swamp_first_hermes = ["plugin.yaml"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

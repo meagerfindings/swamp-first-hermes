@@ -109,6 +109,16 @@ nested layout — `swamp-first-hermes/swamp_first_hermes/plugin.yaml` — is wha
 Hermes's plugin category scan looks for; you do not need to move or flatten
 anything yourself.
 
+Alternatively, install it as a Python package so Hermes's entry-point loader
+(group `hermes_agent.plugins`) registers it — clone the repository and run
+`pip install .`, or install it from your own package index. This registers
+`swamp_first_hermes` without a directory drop. One caveat: Hermes does not read
+`plugin.yaml` for entry-point installs, so `hermes plugins list` shows a blank
+version/description/tool list for a pip-installed instance (a Hermes-side
+limitation) — tool and hook registration work identically. Use the same
+manifest name (`swamp_first_hermes`) in config regardless of install method, so
+a machine with both installs does not end up with two entries.
+
 Installing is not the same as enabling it for a platform. Two separate
 config opt-ins are still required, in the config file the running Hermes
 process actually reads:
