@@ -387,6 +387,35 @@ def test_non_diagnostic_command_still_withholds_stderr_entirely(
     assert "private-writer" not in repr(result)
 
 
+def test_execution_command_surfaces_scrubbed_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A failed model_method_run: the actionable cause (a misplaced input) is on
+    # stderr with an absolute path. The path must be scrubbed, the cause kept —
+    # this is what lets the agent self-correct a run instead of asking a human.
+    fatal_stderr = (
+        "[FTL] error: unknown method input 'apiToken' for "
+        "/opt/data/swamp-hub/extensions/models/trip-packing/trip-packing.ts:12 "
+        "— apiToken is a global argument, not a per-method input"
+    )
+    runner = Mock(
+        return_value=subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr=fatal_stderr
+        )
+    )
+    monkeypatch.setattr("swamp_first_hermes.swamp_cli.subprocess.run", runner)
+
+    result = run_swamp_command("model_method_run", "trip-packing-smoke", "preview")
+
+    assert result.error == "process_failed"
+    assert result.diagnostics is not None
+    # the actionable cause survives so the agent can self-correct the run
+    assert "apiToken is a global argument" in result.diagnostics
+    # the absolute location does not
+    assert "/opt/data" not in result.diagnostics
+    assert "/opt/data" not in repr(result)
+
+
 def test_diagnostic_command_relativizes_repository_root_and_hides_identifiers(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

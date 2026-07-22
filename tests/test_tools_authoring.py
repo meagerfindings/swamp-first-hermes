@@ -66,7 +66,7 @@ class _FakeResult:
             {"model": "my-server", "method": "start"},
             "model_method_run",
             ("my-server", "start"),
-            False,
+            True,
         ),
         (
             swamp_workflow_create,
@@ -81,7 +81,7 @@ class _FakeResult:
             {"name": "nightly-check"},
             "workflow_run",
             ("nightly-check",),
-            False,
+            True,
         ),
         (swamp_extension_search, {}, "extension_search", (), False),
         (

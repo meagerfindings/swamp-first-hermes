@@ -517,7 +517,10 @@ def swamp_model_validate(args: dict[str, object], **kwargs: Any) -> str:
 def swamp_model_method_run(args: dict[str, object], **kwargs: Any) -> str:
     del kwargs
     return _call_swamp_command(
-        "model_method_run", args, required_argument_names=("model", "method")
+        "model_method_run",
+        args,
+        required_argument_names=("model", "method"),
+        include_diagnostics=True,
     )
 
 
@@ -540,7 +543,12 @@ def swamp_workflow_validate(args: dict[str, object], **kwargs: Any) -> str:
 
 def swamp_workflow_run(args: dict[str, object], **kwargs: Any) -> str:
     del kwargs
-    return _call_swamp_command("workflow_run", args, required_argument_names=("name",))
+    return _call_swamp_command(
+        "workflow_run",
+        args,
+        required_argument_names=("name",),
+        include_diagnostics=True,
+    )
 
 
 def swamp_extension_search(args: dict[str, object], **kwargs: Any) -> str:

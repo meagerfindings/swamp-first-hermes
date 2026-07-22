@@ -67,13 +67,15 @@ described next — it does not inspect `swamp_definition_write`,
 
 By default, the Swamp CLI adapter never surfaces a failed process's stderr —
 it can carry absolute local paths and private identifiers. The one narrow
-exception is `swamp_model_validate`, `swamp_workflow_validate`,
-`swamp_extension_quality`, and `swamp_extension_fmt`: on a fatal failure with
-no JSON result body, these four return a `diagnostics` string — the same
+exception is the authoring/execution allowlist — `swamp_model_validate`,
+`swamp_workflow_validate`, `swamp_extension_quality`, `swamp_extension_fmt`,
+`swamp_model_method_run`, and `swamp_workflow_run`: on a fatal failure with
+no JSON result body, these return a `diagnostics` string — the same
 stderr with every absolute filesystem path scrubbed to a repository-relative
-path or an opaque placeholder — so a lint rule, file:line, and fix hint stay
-actionable without ever surfacing where the repository lives on disk. Every
-other tool, and every other failure shape, keeps stderr fully withheld. See
+path or an opaque placeholder — so a lint rule, file:line, missing-input, or
+model-code error stays actionable without ever surfacing where the repository
+lives on disk. Every other tool, and every other failure shape, keeps stderr
+fully withheld. See
 [docs/public-boundary.md](docs/public-boundary.md) for the full scope and
 rationale.
 

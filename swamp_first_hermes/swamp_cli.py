@@ -157,7 +157,18 @@ class SwampCliResult:
 # act on if stderr stays withheld. No other command is affected: every command
 # not in this set keeps the original, unconditional stderr withholding.
 _DIAGNOSTIC_COMMANDS = frozenset(
-    {"model_validate", "workflow_validate", "extension_quality", "extension_fmt"}
+    {
+        "model_validate",
+        "workflow_validate",
+        "extension_quality",
+        "extension_fmt",
+        # Execution commands: a failed run's stderr carries the actionable cause
+        # (a missing/misplaced input, a schema violation, a model-code exception)
+        # that the agent needs to fix its own definition — scrubbed of paths just
+        # like the authoring commands.
+        "model_method_run",
+        "workflow_run",
+    }
 )
 
 # Matches an absolute filesystem path token: a ``/`` not preceded by a word
