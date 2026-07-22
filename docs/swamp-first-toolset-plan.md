@@ -33,12 +33,13 @@ this deployment" (closed, verifiable by listing what's enabled).
 
 ## Completed
 
-- **Closed the unauthenticated gateway API.** `API_SERVER_ENABLED` removed
-  from `services/hermes/docker-compose.yml` (commit `137ae17`), deployed to
-  the live host, and verified: `docker inspect` shows the env var absent and
-  port 8642 is no longer listening. This was attack-surface reduction
-  (who can reach the agent), not swamp-first enforcement (what the agent can
-  do) — the two are separate concerns and this plan is about the second one.
+- **Closed the unauthenticated gateway API.** The deployment's
+  `API_SERVER_ENABLED` setting was removed from its container configuration,
+  the change was deployed, and it was verified: container inspection showed
+  the env var absent and the API's listening port was no longer open. This
+  was attack-surface reduction (who can reach the agent), not swamp-first
+  enforcement (what the agent can do) — the two are separate concerns and
+  this plan is about the second one.
 - **Confirmed the live tool inventory.** `hermes tools list` on the running
   deployment shows the base toolset includes `terminal`, `file`, `browser`,
   `code_execution`, `computer_use`, `homeassistant`, `delegation`, and

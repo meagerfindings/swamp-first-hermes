@@ -35,6 +35,9 @@ def test_private_installation_documentation_is_complete_and_public() -> None:
         "local observation only",
         "not immutable provenance",
         "not a comprehensive audit",
+        "swamp_definition_write",
+        "swamp_workflow_set_schedule",
+        "confirmed",
     ):
         assert required_statement in installation
 
@@ -49,6 +52,9 @@ def test_private_installation_documentation_is_complete_and_public() -> None:
         "`no_agent`",
         "does not prove that an agent uses Swamp",
         "does not parse shell text",
+        "swamp_definition_write",
+        "swamp_workflow_set_schedule",
+        "confirmed",
     ):
         assert required_statement in readme
 

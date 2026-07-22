@@ -103,13 +103,22 @@ in the right config. Either one alone loads nothing, silently.
    hermes tools list --platform discord
    ```
 
-This copy-or-symlink-into-`$HERMES_HOME/plugins/` workflow is the Hermes
-directory-plugin installation mechanism. It does not use `pip install` or
-`hermes plugins install`, because this source tree is already a directory
-plugin. `hermes plugins install <owner/repo>` is a *different* mechanism that
-git-clones into the CLI's resolved home; using it here installs into the decoy
-tree and produces a plugin the gateway never loads while every CLI command
-reports it as enabled.
+This copy-or-symlink-into-`$HERMES_HOME/plugins/` workflow is one Hermes
+directory-plugin installation mechanism, useful when you want full control
+over the checkout (e.g. a private fork, or `git pull` as your update path).
+It does not use `pip install`. `hermes plugins install <owner/repo>` is a
+*different*, also legitimate mechanism: it git-clones the repository straight
+into the CLI's resolved home, and it is the one this project's own [README
+community-install instructions](../README.md#community-install) recommend for
+installing this public repository. It is not unsafe to use — the risk is not
+the mechanism, it is the same `HERMES_HOME` decoy this whole section warns
+about: `hermes plugins install` clones into whichever home the CLI *resolves*,
+so if that resolves to the decoy tree (see the warning at the top of this
+document) the command still exits successfully and every subsequent CLI
+command still reports the plugin as enabled, while the running gateway never
+loads it. Confirm `HERMES_HOME` against the running gateway's actual
+environment before *and after* running `hermes plugins install`, exactly as
+you would for the copy/symlink workflow.
 
 Note that CLI introspection alone has repeatedly failed to detect a broken
 install here. Treat `plugins list` and `tools list` as necessary but not
@@ -119,10 +128,27 @@ platform.
 ## Keep local paths and configuration private
 
 The plugin has no private-path setting and no deployment configuration file.
-It invokes the local `swamp` executable with a fixed, read-only command set.
-When a tool call omits `repository_path`, the Swamp CLI inherits Hermes's
-current working directory. A caller may instead supply `repository_path` for
-one tool call; it must be an existing directory.
+It invokes the local `swamp` executable through a fixed, closed command
+mapping — every tool maps to one declared CLI subcommand prefix plus a
+bounded count of caller-supplied positional arguments, each passed as a
+discrete `argv` element, never interpolated into a shell string. That
+mapping is **not all read-only**: `swamp_model_search`, `swamp_workflow_search`,
+`swamp_extension_search`, `swamp_model_validate`, and `swamp_workflow_validate`
+are read-only, but `swamp_model_method_run`, `swamp_workflow_run`,
+`swamp_extension_pull`, and `swamp_extension_push` execute or mutate, and
+`swamp_workflow_set_schedule` activates unattended execution. Separately,
+`swamp_definition_write` is not a `swamp` CLI call at all — it takes a
+caller-supplied `content` string and writes it directly to a file on disk
+with plain Python I/O (no shell, no CLI subprocess for the write itself). It
+is scoped, not read-only: the target path must resolve inside the given
+`repository_path` with no `..` traversal or symlink escape, and must match a
+known Swamp definition convention; the write is immediately followed by the
+matching `swamp` validate/quality check, and a failed model or workflow
+validation reverts the previous content (or deletes a newly created file).
+See [the README's tool table](../README.md#current-scope) for the full
+14-tool breakdown by class. When a tool call omits `repository_path`, the
+Swamp CLI inherits Hermes's current working directory. A caller may instead
+supply `repository_path` for one tool call; it must be an existing directory.
 
 Keep the actual target path in the process, caller, or private operational
 configuration outside this Git repository. For example, set the deployment's
@@ -173,6 +199,31 @@ is not Hermes's current working directory, invoke the tool with its private
 `repository_path` at runtime rather than recording that path here. Treat the
 result data as local operational evidence: review it privately and do not copy
 it into issues, commits, tests, or public documentation.
+
+### Verifying the authoring and execution tools
+
+`"ok": true` means something different once you move past the read-only
+tools:
+
+- For `swamp_model_create` / `swamp_workflow_create`, `"ok": true` means an
+  inert scaffold file was written — it does not run anything.
+- For `swamp_definition_write`, `"ok": true` means the write passed its
+  matching `swamp` validate/quality check; the response also carries
+  `validated`, `reverted`, and `deleted` fields, so confirm you are reading
+  those, not just `ok`, before assuming content landed as intended. A
+  workflow write is rejected outright (`"ok": false`) if its content sets a
+  live `trigger.schedule` value — that is expected, not a bug.
+- For `swamp_model_method_run` / `swamp_workflow_run` / `swamp_extension_pull`,
+  `"ok": true` means the underlying action actually executed against the
+  target repository — verify against real Swamp state afterward
+  (`swamp_model_search` / `swamp_workflow_search`), not just the response.
+- For `swamp_extension_push` and `swamp_workflow_set_schedule`, the call
+  short-circuits with `"ok": false` and `"error": "confirmation_required"`
+  unless the caller passed `confirmed: true`. Do not verify these two by
+  actually publishing to the public registry or activating a live schedule
+  as a casual smoke test — confirm the confirmation-required short-circuit
+  behavior instead, and only exercise the confirmed path deliberately,
+  against a target you intend to change.
 
 If discovery fails, run the following in the same private environment that
 will start Hermes, with `HERMES_HOME` exported to the same value that

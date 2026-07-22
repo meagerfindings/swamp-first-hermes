@@ -57,12 +57,27 @@ cases and cannot establish end-to-end routing.
 
 ## Current bounded implementation
 
-Today, the plugin supplies read-only discovery and evidence tools plus narrow
-argument-based policy checks. It does not parse arbitrary shell text, mediate
-every process, inspect every filesystem action, control every scheduler path,
-or establish provenance for every result. A passing check therefore means only
-that the implemented bounded rule passed; it does not prove that all work was
-Swamp-routed.
+Today, the plugin supplies read-only discovery tools, scoped authoring tools
+(create, validate, and write a Swamp model/workflow/extension definition,
+with automatic validate-and-revert-on-failure), and execution tools (run a
+model method, run a workflow, pull or push an extension, set a workflow's
+live schedule) plus narrow argument-based policy checks. The two most
+safety-sensitive tools — publishing an extension and activating a workflow's
+live schedule — require the caller to pass an explicit `confirmed: true`
+argument before they proceed.
+
+That `confirmed: true` requirement is a **separate mechanism** from the
+`pre_tool_call` policy hook described below. The hook does not inspect
+`swamp_definition_write`, the extension-publish tool, or the
+schedule-activation tool at all — it narrowly classifies only direct
+scheduler-bypass command vectors and a documented `cronjob` tool call missing
+the Swamp-first toolset. Confirmation-gating and policy-hook classification
+are independent controls that happen to cover different, non-overlapping
+tools; neither substitutes for the other. The plugin does not parse arbitrary
+shell text, mediate every process, inspect every filesystem action, control
+every scheduler path, or establish provenance for every result. A passing
+check therefore means only that the implemented bounded rule passed; it does
+not prove that all work was Swamp-routed.
 
 ### Local policy-decision observation
 
