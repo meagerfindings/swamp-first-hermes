@@ -14,7 +14,7 @@ environment.
 
 ## Current scope
 
-The plugin registers 15 tools, grouped below by how much they can change:
+The plugin registers 16 tools, grouped below by how much they can change:
 
 ### Read-only
 
@@ -34,6 +34,7 @@ The plugin registers 15 tools, grouped below by how much they can change:
 | `swamp_model_create` | Scaffold a new model definition file for a given type and name. |
 | `swamp_workflow_create` | Scaffold a new workflow definition file. |
 | `swamp_definition_write` | Write caller-supplied content into a model, workflow, report, or extension definition file, then immediately validate it. See [Authoring and confirmation gates](#authoring-and-confirmation-gates). |
+| `swamp_model_set_config` | Set configuration (e.g. `globalArguments`, `tags`, vault bindings) on an existing model instance located by name — deep-merged into the instance's raw definition, then validated, reverting on failure. Identity fields (`id`, `type`, `typeVersion`, `name`, `version`) are refused. |
 | `swamp_extension_fmt` | Auto-format a Swamp extension's source from its manifest path — the fix for what `swamp_extension_quality` tells you to run. |
 
 ### Mutating / execute
