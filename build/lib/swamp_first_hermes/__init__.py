@@ -16,7 +16,6 @@ from .policy import (
 )
 from .tools import (
     SWAMP_DEFINITION_WRITE_SCHEMA,
-    SWAMP_EXTENSION_FMT_SCHEMA,
     SWAMP_EXTENSION_PULL_SCHEMA,
     SWAMP_EXTENSION_PUSH_SCHEMA,
     SWAMP_EXTENSION_QUALITY_SCHEMA,
@@ -31,7 +30,6 @@ from .tools import (
     SWAMP_WORKFLOW_SET_SCHEDULE_SCHEMA,
     SWAMP_WORKFLOW_VALIDATE_SCHEMA,
     swamp_definition_write,
-    swamp_extension_fmt,
     swamp_extension_pull,
     swamp_extension_push,
     swamp_extension_quality,
@@ -171,12 +169,6 @@ def register(ctx: Any) -> None:
         toolset=_TOOLSET,
         schema=SWAMP_EXTENSION_QUALITY_SCHEMA,
         handler=swamp_extension_quality,
-    )
-    ctx.register_tool(
-        name="swamp_extension_fmt",
-        toolset=_TOOLSET,
-        schema=SWAMP_EXTENSION_FMT_SCHEMA,
-        handler=swamp_extension_fmt,
     )
     ctx.register_tool(
         name="swamp_extension_push",

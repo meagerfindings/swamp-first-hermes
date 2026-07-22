@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import pytest
 
 from swamp_first_hermes.tools import (
+    swamp_extension_fmt,
     swamp_extension_pull,
     swamp_extension_push,
     swamp_extension_quality,
@@ -23,65 +24,93 @@ from swamp_first_hermes.tools import (
 
 
 class _FakeResult:
-    def __init__(self, ok: bool, data: object, error: str | None) -> None:
+    def __init__(
+        self,
+        ok: bool,
+        data: object,
+        error: str | None,
+        diagnostics: str | None = None,
+    ) -> None:
         self.ok = ok
         self.data = data
         self.error = error
+        self.diagnostics = diagnostics
 
 
 @pytest.mark.parametrize(
-    ("handler", "args", "expected_command", "expected_positional"),
+    (
+        "handler",
+        "args",
+        "expected_command",
+        "expected_positional",
+        "include_diagnostics",
+    ),
     (
         (
             swamp_model_create,
             {"model_type": "aws-ec2", "name": "my-server"},
             "model_create",
             ("aws-ec2", "my-server"),
+            False,
         ),
-        (swamp_model_validate, {}, "model_validate", ()),
+        (swamp_model_validate, {}, "model_validate", (), True),
         (
             swamp_model_validate,
             {"name": "my-server"},
             "model_validate",
             ("my-server",),
+            True,
         ),
         (
             swamp_model_method_run,
             {"model": "my-server", "method": "start"},
             "model_method_run",
             ("my-server", "start"),
+            False,
         ),
         (
             swamp_workflow_create,
             {"name": "nightly-check"},
             "workflow_create",
             ("nightly-check",),
+            False,
         ),
-        (swamp_workflow_validate, {}, "workflow_validate", ()),
+        (swamp_workflow_validate, {}, "workflow_validate", (), True),
         (
             swamp_workflow_run,
             {"name": "nightly-check"},
             "workflow_run",
             ("nightly-check",),
+            False,
         ),
-        (swamp_extension_search, {}, "extension_search", ()),
+        (swamp_extension_search, {}, "extension_search", (), False),
         (
             swamp_extension_search,
             {"query": "llm"},
             "extension_search",
             ("llm",),
+            False,
         ),
         (
             swamp_extension_pull,
             {"extension": "@keeb/ollama"},
             "extension_pull",
             ("@keeb/ollama",),
+            False,
         ),
         (
             swamp_extension_quality,
             {"manifest_path": "manifest.yaml"},
             "extension_quality",
             ("manifest.yaml",),
+            True,
+        ),
+        (
+            swamp_extension_fmt,
+            {"manifest_path": "manifest.yaml"},
+            "extension_fmt",
+            ("manifest.yaml",),
+            True,
         ),
     ),
 )
@@ -91,6 +120,7 @@ def test_wrapper_calls_the_matching_allowlisted_command(
     args: dict[str, object],
     expected_command: str,
     expected_positional: tuple[str, ...],
+    include_diagnostics: bool,
 ) -> None:
     captured: dict[str, object] = {}
 
@@ -106,7 +136,12 @@ def test_wrapper_calls_the_matching_allowlisted_command(
 
     assert captured["command"] == expected_command
     assert captured["positional"] == expected_positional
-    assert payload == {"ok": True, "data": {"ok": True}, "error": None}
+    expected_payload: dict[str, object] = {"ok": True, "data": {"ok": True}, "error": None}
+    if include_diagnostics:
+        expected_payload["diagnostics"] = None
+    assert payload == expected_payload
+    if not include_diagnostics:
+        assert "diagnostics" not in payload
 
 
 @pytest.mark.parametrize(
@@ -119,6 +154,7 @@ def test_wrapper_calls_the_matching_allowlisted_command(
         (swamp_workflow_run, {}),
         (swamp_extension_pull, {}),
         (swamp_extension_quality, {}),
+        (swamp_extension_fmt, {}),
     ),
 )
 def test_wrapper_rejects_missing_required_arguments_without_calling_swamp(
@@ -191,9 +227,17 @@ def test_wrapper_normalizes_an_unexpected_exception(
 
     monkeypatch.setattr("swamp_first_hermes.tools.run_swamp_command", raiser)
 
+    # swamp_model_validate is one of the diagnostic-including tools, so its
+    # JSON payload always carries a ``diagnostics`` key (``None`` here, since
+    # the adapter never ran).
     payload = json.loads(swamp_model_validate({}))
 
-    assert payload == {"ok": False, "data": None, "error": "execution_error"}
+    assert payload == {
+        "ok": False,
+        "data": None,
+        "error": "execution_error",
+        "diagnostics": None,
+    }
 
 
 def test_model_validate_surfaces_process_failed_on_a_fatal_swamp_error(
@@ -210,7 +254,57 @@ def test_model_validate_surfaces_process_failed_on_a_fatal_swamp_error(
 
     payload = json.loads(swamp_model_validate({"name": "some-model"}))
 
-    assert payload == {"ok": False, "data": None, "error": "process_failed"}
+    assert payload == {
+        "ok": False,
+        "data": None,
+        "error": "process_failed",
+        "diagnostics": None,
+    }
+
+
+def test_diagnostic_tools_pass_through_scrubbed_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The scrubbed ``diagnostics`` string the adapter produces reaches the caller."""
+
+    def fake_runner(*_args: object, **_kwargs: object):
+        return _FakeResult(
+            False,
+            None,
+            "process_failed",
+            diagnostics="models/thing.ts:42:3 - error require-await: ...",
+        )
+
+    monkeypatch.setattr("swamp_first_hermes.tools.run_swamp_command", fake_runner)
+
+    payload = json.loads(swamp_extension_quality({"manifest_path": "manifest.yaml"}))
+
+    assert payload == {
+        "ok": False,
+        "data": None,
+        "error": "process_failed",
+        "diagnostics": "models/thing.ts:42:3 - error require-await: ...",
+    }
+
+
+def test_non_diagnostic_tool_never_includes_a_diagnostics_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The non-diagnostic tool wrappers never surface a ``diagnostics`` key, even
+    if the underlying adapter result carried one (defense in depth beyond the
+    adapter's own scoping to ``_DIAGNOSTIC_COMMANDS``)."""
+
+    def fake_runner(*_args: object, **_kwargs: object):
+        return _FakeResult(True, {"created": True}, None, diagnostics="should never surface")
+
+    monkeypatch.setattr("swamp_first_hermes.tools.run_swamp_command", fake_runner)
+
+    payload = json.loads(
+        swamp_model_create({"model_type": "aws-ec2", "name": "my-server"})
+    )
+
+    assert payload == {"ok": True, "data": {"created": True}, "error": None}
+    assert "diagnostics" not in payload
 
 
 def test_model_method_run_forwards_inputs_to_the_adapter(

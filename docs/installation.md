@@ -146,7 +146,7 @@ known Swamp definition convention; the write is immediately followed by the
 matching `swamp` validate/quality check, and a failed model or workflow
 validation reverts the previous content (or deletes a newly created file).
 See [the README's tool table](../README.md#current-scope) for the full
-14-tool breakdown by class. When a tool call omits `repository_path`, the
+15-tool breakdown by class. When a tool call omits `repository_path`, the
 Swamp CLI inherits Hermes's current working directory. A caller may instead
 supply `repository_path` for one tool call; it must be an existing directory.
 

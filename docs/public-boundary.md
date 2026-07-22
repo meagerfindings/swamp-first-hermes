@@ -16,6 +16,36 @@ Do not commit or paste any of the following:
 
 Keep this material in a private, access-controlled location outside the project. The `.gitignore` rules cover common names and directories, but they are not a substitute for review.
 
+## The one narrow runtime exception: scrubbed authoring diagnostics
+
+This boundary also governs a runtime behavior, not only what gets committed:
+by default, `swamp_first_hermes/swamp_cli.py` never surfaces a Swamp CLI
+process's stderr to a caller, because stderr can carry absolute local paths
+and private identifiers. That default holds for every tool except a small,
+explicitly named allowlist — `model_validate`, `workflow_validate`,
+`extension_quality`, and `extension_fmt` — and even there, only on the
+specific failure shape where the CLI exits non-zero with no JSON result body
+(`error="process_failed"`).
+
+These four commands exist specifically to report actionable problems in
+caller-authored source: a formatting diff, a lint rule with a file, a line,
+and a fix hint, a quality-rubric failure. Withholding that output entirely
+made an agent's own authoring loop impossible to self-correct — it could be
+told by Swamp's own error text to run a sibling command to fix a problem it
+was never allowed to see. So, and only for these four commands, that failure
+path additionally returns a `diagnostics` string: the same stderr, with every
+absolute filesystem path scrubbed to a repository-relative path (or an opaque
+`<repo>` / `<path>` placeholder when no safe relative form is known) before
+it ever leaves the process. Line numbers, lint rule names, and fix hints are
+left intact — that content is the entire point of surfacing anything at all.
+
+Every other command, and every other failure shape, is unaffected: stderr
+stays fully withheld, `diagnostics` stays `None`, exactly as before this
+exception existed. This is a narrowing of what one command shows the caller
+that already invoked it, on a fixed, code-reviewed allowlist — not a general
+loosening of what may be committed to or read from this repository, and nothing
+above about local paths, credentials, or private identifiers is relaxed by it.
+
 ## What may be public
 
 Public contributions may include generic source code, tests using synthetic values, and documentation that uses neutral placeholders. Documentation must describe capabilities accurately and must not imply that a planned feature is already implemented.

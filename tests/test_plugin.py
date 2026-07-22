@@ -15,6 +15,7 @@ from swamp_first_hermes.policy import (
 )
 from swamp_first_hermes.tools import (
     swamp_definition_write,
+    swamp_extension_fmt,
     swamp_extension_pull,
     swamp_extension_push,
     swamp_extension_quality,
@@ -76,6 +77,7 @@ def test_registers_only_documented_swamp_tools_and_policy_hook() -> None:
         ("swamp_extension_search", "swamp_first", swamp_extension_search),
         ("swamp_extension_pull", "swamp_first", swamp_extension_pull),
         ("swamp_extension_quality", "swamp_first", swamp_extension_quality),
+        ("swamp_extension_fmt", "swamp_first", swamp_extension_fmt),
         ("swamp_extension_push", "swamp_first", swamp_extension_push),
         ("swamp_definition_write", "swamp_first", swamp_definition_write),
         ("swamp_workflow_set_schedule", "swamp_first", swamp_workflow_set_schedule),

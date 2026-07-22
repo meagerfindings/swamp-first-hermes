@@ -14,7 +14,7 @@ environment.
 
 ## Current scope
 
-The plugin registers 14 tools, grouped below by how much they can change:
+The plugin registers 15 tools, grouped below by how much they can change:
 
 ### Read-only
 
@@ -34,6 +34,7 @@ The plugin registers 14 tools, grouped below by how much they can change:
 | `swamp_model_create` | Scaffold a new model definition file for a given type and name. |
 | `swamp_workflow_create` | Scaffold a new workflow definition file. |
 | `swamp_definition_write` | Write caller-supplied content into a model, workflow, report, or extension definition file, then immediately validate it. See [Authoring and confirmation gates](#authoring-and-confirmation-gates). |
+| `swamp_extension_fmt` | Auto-format a Swamp extension's source from its manifest path — the fix for what `swamp_extension_quality` tells you to run. |
 
 ### Mutating / execute
 
@@ -63,6 +64,18 @@ and does not parse shell text. It does not comprehensively enforce all Swamp-fir
 This policy hook is a separate mechanism from the `confirmed: true` gates
 described next — it does not inspect `swamp_definition_write`,
 `swamp_extension_push`, or `swamp_workflow_set_schedule` at all.
+
+By default, the Swamp CLI adapter never surfaces a failed process's stderr —
+it can carry absolute local paths and private identifiers. The one narrow
+exception is `swamp_model_validate`, `swamp_workflow_validate`,
+`swamp_extension_quality`, and `swamp_extension_fmt`: on a fatal failure with
+no JSON result body, these four return a `diagnostics` string — the same
+stderr with every absolute filesystem path scrubbed to a repository-relative
+path or an opaque placeholder — so a lint rule, file:line, and fix hint stay
+actionable without ever surfacing where the repository lives on disk. Every
+other tool, and every other failure shape, keeps stderr fully withheld. See
+[docs/public-boundary.md](docs/public-boundary.md) for the full scope and
+rationale.
 
 ## Authoring and confirmation gates
 

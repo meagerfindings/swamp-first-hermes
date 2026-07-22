@@ -11,6 +11,7 @@ import pytest
 from swamp_first_hermes.swamp_cli import (
     ALLOWED_COMMANDS,
     SwampCliResult,
+    _scrub_diagnostics,
     build_command,
     run_swamp_command,
 )
@@ -31,6 +32,7 @@ def test_allowlist_maps_read_only_commands_to_fixed_json_arguments() -> None:
             "extension_search",
             "extension_pull",
             "extension_quality",
+            "extension_fmt",
             "extension_push",
         }
     )
@@ -75,6 +77,11 @@ def test_allowlist_maps_read_only_commands_to_fixed_json_arguments() -> None:
             ("extension", "quality", "manifest.yaml"),
         ),
         (
+            "extension_fmt",
+            ("manifest.yaml",),
+            ("extension", "fmt", "manifest.yaml"),
+        ),
+        (
             "extension_push",
             ("manifest.yaml",),
             ("extension", "push", "manifest.yaml"),
@@ -103,6 +110,8 @@ def test_build_command_assembles_positional_arguments_for_new_commands(
         ("workflow_run", ()),
         ("workflow_run", ("a", "b")),
         ("extension_search", ("a", "b")),
+        ("extension_fmt", ()),
+        ("extension_fmt", ("manifest.yaml", "extra")),
     ),
 )
 def test_build_command_rejects_the_wrong_number_of_positional_arguments(
@@ -316,14 +325,18 @@ def test_nonzero_exit_with_json_body_surfaces_the_body_as_process_error(
     )
 
 
-def test_validate_fatal_bundle_error_is_process_failed_and_hides_local_path(
+def test_validate_fatal_bundle_error_surfaces_scrubbed_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Models a swamp ``model validate`` fatal: the CLI exits non-zero and writes
     # a ``[FTL]`` diagnostic — containing an absolute local path and a private
-    # extension identifier — to stderr, with no JSON on stdout. The adapter must
-    # report a distinct ``process_failed`` (not an opaque ``process_error`` that
-    # looks like a rejection) and must not leak the diagnostic.
+    # extension identifier — to stderr, with no JSON on stdout. ``model_validate``
+    # is in the narrow diagnostic-command allowlist, so the adapter must report
+    # a distinct ``process_failed`` (not an opaque ``process_error`` that looks
+    # like a rejection) and surface a scrubbed version of the diagnostic — but
+    # the absolute path and the private identifier embedded in it must never
+    # appear in what is surfaced, since no repository root was supplied here to
+    # relativize against and the path is not one the adapter can prove safe.
     fatal_stderr = (
         "[FTL] error: Error: Bundle has no extension export: "
         "/opt/data/swamp-hub/.swamp/bundles/e9c5c01e/@acme/private-writer/model.js"
@@ -337,9 +350,83 @@ def test_validate_fatal_bundle_error_is_process_failed_and_hides_local_path(
 
     result = run_swamp_command("model_validate", "some-model")
 
-    assert result == SwampCliResult(ok=False, data=None, error="process_failed")
+    assert result.ok is False
+    assert result.data is None
+    assert result.error == "process_failed"
+    assert result.diagnostics is not None
+    assert "Bundle has no extension export" in result.diagnostics
+    assert "/opt/data" not in result.diagnostics
+    assert "private-writer" not in result.diagnostics
     assert "/opt/data" not in repr(result)
     assert "private-writer" not in repr(result)
+
+
+def test_non_diagnostic_command_still_withholds_stderr_entirely(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Same fatal shape as above (no JSON body, an absolute path and a private
+    # identifier on stderr), but for a command outside the narrow diagnostic
+    # allowlist. The scoping must be strict: this must stay fully withheld,
+    # exactly as before this feature existed.
+    fatal_stderr = (
+        "[FTL] error: Error: Bundle has no extension export: "
+        "/opt/data/swamp-hub/.swamp/bundles/e9c5c01e/@acme/private-writer/model.js"
+    )
+    runner = Mock(
+        return_value=subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr=fatal_stderr
+        )
+    )
+    monkeypatch.setattr("swamp_first_hermes.swamp_cli.subprocess.run", runner)
+
+    result = run_swamp_command("extension_pull", "@acme/private-writer")
+
+    assert result == SwampCliResult(ok=False, data=None, error="process_failed")
+    assert result.diagnostics is None
+    assert "/opt/data" not in repr(result)
+    assert "private-writer" not in repr(result)
+
+
+def test_diagnostic_command_relativizes_repository_root_and_hides_identifiers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A realistic ``extension quality`` failure: a lint diagnostic with a
+    # file:line, a rule name, and a fix hint, prefixed by the absolute
+    # repository path (which itself embeds a private username and project
+    # name). The surfaced diagnostics must keep the relative file:line and
+    # rule name — that is the entire point — while the absolute prefix and
+    # the private identifiers embedded in it must not appear anywhere in it.
+    repository_directory = tmp_path / "mgreten" / "git" / "acme-secret-project"
+    repository_directory.mkdir(parents=True)
+    fatal_stderr = (
+        f"{repository_directory}/extensions/models/thing-writer/model.ts:42:3 - "
+        "error require-await: Async function 'writeThing' has no await "
+        "expression. Run `swamp extension fmt` to fix.\n"
+    )
+    runner = Mock(
+        return_value=subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr=fatal_stderr
+        )
+    )
+    monkeypatch.setattr("swamp_first_hermes.swamp_cli.subprocess.run", runner)
+
+    result = run_swamp_command(
+        "extension_quality",
+        "extensions/models/thing-writer/manifest.yaml",
+        repository_path=str(repository_directory),
+    )
+
+    assert result.error == "process_failed"
+    assert result.data is None
+    assert result.diagnostics is not None
+    assert (
+        "extensions/models/thing-writer/model.ts:42:3" in result.diagnostics
+    )
+    assert "require-await" in result.diagnostics
+    assert "swamp extension fmt" in result.diagnostics
+    assert str(repository_directory) not in result.diagnostics
+    assert "mgreten" not in result.diagnostics
+    assert "acme-secret-project" not in result.diagnostics
 
 
 def test_malformed_json_is_normalized(
@@ -475,3 +562,102 @@ def test_build_command_omits_input_arguments_when_inputs_is_empty() -> None:
         "meth",
         "--json",
     )
+
+
+# --- diagnostics scrubber -------------------------------------------------
+
+
+def test_scrub_diagnostics_relativizes_the_repository_root(tmp_path: Path) -> None:
+    repository_directory = tmp_path / "mgreten" / "acme-secret-project"
+    text = (
+        f"{repository_directory}/models/thing.yaml:5:1 - error: bad indent\n"
+    )
+
+    scrubbed = _scrub_diagnostics(text, str(repository_directory))
+
+    assert scrubbed == "models/thing.yaml:5:1 - error: bad indent\n"
+    assert "mgreten" not in scrubbed
+    assert "acme-secret-project" not in scrubbed
+
+
+def test_scrub_diagnostics_replaces_a_bare_repository_root_mention(
+    tmp_path: Path,
+) -> None:
+    repository_directory = tmp_path / "mgreten" / "acme-secret-project"
+    text = f"fatal: could not open repository at {repository_directory}"
+
+    scrubbed = _scrub_diagnostics(text, str(repository_directory))
+
+    assert scrubbed == "fatal: could not open repository at <repo>"
+
+
+def test_scrub_diagnostics_redacts_unrelated_absolute_paths_wholesale(
+    tmp_path: Path,
+) -> None:
+    repository_directory = tmp_path / "repo"
+    repository_directory.mkdir()
+    text = (
+        "cache miss at /opt/data/swamp-hub/.swamp/bundles/e9c5/@acme/secret/model.js"
+    )
+
+    scrubbed = _scrub_diagnostics(text, str(repository_directory))
+
+    assert scrubbed == "cache miss at <path>"
+    assert "secret" not in scrubbed
+
+
+def test_scrub_diagnostics_does_not_leak_a_sibling_path_sharing_the_root_as_a_prefix(
+    tmp_path: Path,
+) -> None:
+    # A repository root is a literal string prefix of an unrelated sibling
+    # directory's name (e.g. "acme" vs. "acme-secret-internal"). A naive
+    # substring replace would strip only the "acme" portion and leave the
+    # rest — "secret-internal" — exposed. The boundary check must decline to
+    # touch this case at all, deferring to the wholesale absolute-path
+    # catch-all instead.
+    repository_directory = tmp_path / "acme"
+    repository_directory.mkdir()
+    sibling_path = tmp_path / "acme-secret-internal" / "file.txt"
+    text = f"see also {sibling_path}"
+
+    scrubbed = _scrub_diagnostics(text, str(repository_directory))
+
+    assert scrubbed == "see also <path>"
+    assert "secret" not in scrubbed
+    assert str(repository_directory) not in scrubbed
+
+
+def test_scrub_diagnostics_escapes_regex_metacharacters_in_the_repository_root(
+    tmp_path: Path,
+) -> None:
+    # The repository root is substituted via a regex built from the path
+    # string, not a plain substring replace, so a root containing a regex
+    # metacharacter (a real, common case: "." in a directory name like
+    # "my.repo") must be escaped rather than interpreted as a pattern.
+    repository_directory = tmp_path / "my.repo"
+    repository_directory.mkdir()
+    text = f"{repository_directory}/models/thing.yaml:1:1 - error"
+
+    scrubbed = _scrub_diagnostics(text, str(repository_directory))
+
+    assert scrubbed == "models/thing.yaml:1:1 - error"
+    assert "my.repo" not in scrubbed
+
+
+def test_scrub_diagnostics_redacts_every_absolute_path_with_no_known_root() -> None:
+    text = "error at /Users/mgreten/git/acme-secret-project/model.ts:1:1"
+
+    scrubbed = _scrub_diagnostics(text, None)
+
+    assert scrubbed == "error at <path>"
+
+
+def test_scrub_diagnostics_does_not_disturb_relative_paths() -> None:
+    text = "models/thing.yaml:5:1 - error: bad indent"
+
+    assert _scrub_diagnostics(text, None) == text
+
+
+def test_scrub_diagnostics_returns_empty_string_for_empty_or_non_string_input() -> None:
+    assert _scrub_diagnostics("", "/some/repo") == ""
+    assert _scrub_diagnostics(None, "/some/repo") == ""  # type: ignore[arg-type]

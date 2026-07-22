@@ -29,7 +29,6 @@ _COMMAND_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "extension_search": ("extension", "search"),
     "extension_pull": ("extension", "pull"),
     "extension_quality": ("extension", "quality"),
-    "extension_fmt": ("extension", "fmt"),
     "extension_push": ("extension", "push"),
 }
 ALLOWED_COMMANDS = frozenset(_COMMAND_ARGUMENTS)
@@ -48,7 +47,6 @@ _COMMAND_POSITIONAL_ARITY: dict[str, tuple[int, int]] = {
     "extension_search": (0, 1),
     "extension_pull": (1, 1),
     "extension_quality": (1, 1),
-    "extension_fmt": (1, 1),
     "extension_push": (1, 1),
 }
 DEFAULT_TIMEOUT_SECONDS = 10.0
@@ -61,7 +59,6 @@ _COMMAND_TIMEOUT_SECONDS: dict[str, float] = {
     "extension_push": 180.0,
     "extension_pull": 120.0,
     "extension_quality": 120.0,
-    "extension_fmt": 60.0,
     "extension_search": 60.0,
     "model_method_run": 300.0,
     "workflow_run": 600.0,
@@ -129,121 +126,12 @@ class SwampCliResult:
     a broken extension bundle or environment — is ``process_failed`` (``data``
     is ``None``). Error details and raw process output are intentionally omitted
     so local environment values cannot escape through this boundary; only the
-    failure class is surfaced, never stderr text — with one narrow, explicit
-    exception: ``diagnostics``.
-
-    ``diagnostics`` is ``None`` for every command except the small allowlist in
-    ``_DIAGNOSTIC_COMMANDS`` (the authoring/validate/quality/fmt commands), and
-    even there it is populated only on the ``process_failed`` path (a non-zero
-    exit with no JSON body). When set, it is stderr with every absolute
-    filesystem path scrubbed — see ``_scrub_diagnostics`` — so a lint rule,
-    file:line, and fix hint stay actionable without ever surfacing where the
-    repository lives on disk. Every other command, and every other failure
-    path, keeps stderr fully withheld exactly as before.
+    failure class is surfaced, never stderr text.
     """
 
     ok: bool
     data: Any | None
     error: str | None
-    diagnostics: str | None = None
-
-
-# The narrow, explicit allowlist of authoring/diagnostic commands for which
-# ``run_swamp_command`` will surface a scrubbed ``diagnostics`` string on the
-# ``process_failed`` path. These are exactly the commands whose whole purpose
-# is to report actionable problems in caller-authored source (a formatting
-# diff, a lint rule with file:line, a quality-rubric failure) — and whose own
-# error text can tell the agent to run a sibling command it then has no way to
-# act on if stderr stays withheld. No other command is affected: every command
-# not in this set keeps the original, unconditional stderr withholding.
-_DIAGNOSTIC_COMMANDS = frozenset(
-    {"model_validate", "workflow_validate", "extension_quality", "extension_fmt"}
-)
-
-# Matches an absolute filesystem path token: a ``/`` not preceded by a word
-# character, ``.``, or another ``/`` (so it only matches where a path token
-# actually starts — the start of the string, after whitespace, or after
-# punctuation like ``(`` or ``:`` — never mid-way through an already-relative
-# path such as ``models/thing.ts``), followed by a run of non-whitespace.
-_ABSOLUTE_PATH_TOKEN_PATTERN = re.compile(r"(?<![\w./])/\S+")
-_ABSOLUTE_PATH_PLACEHOLDER = "<path>"
-_REPOSITORY_ROOT_PLACEHOLDER = "<repo>"
-
-
-def _repository_root_candidates(repository_directory: str | None) -> tuple[str, ...]:
-    """Return the absolute forms of the repository root to relativize against.
-
-    Includes the exact directory Swamp's subprocess ran in, plus its
-    ``abspath`` and ``realpath`` forms, since a diagnostic tool may print any
-    of them depending on how it resolved the path internally (for example
-    through a symlink). Only absolute forms are returned — a caller-supplied
-    ``repository_directory`` that was itself relative (e.g. ``"."``) is not
-    used verbatim, since a short relative string is far more likely to
-    coincidentally reappear elsewhere in diagnostic text than a real absolute
-    path is. Ordered longest-first so the most specific form is substituted
-    before a shorter one could partially match.
-    """
-    if not repository_directory:
-        return ()
-    candidates: list[str] = []
-    for candidate in (
-        repository_directory,
-        os.path.abspath(repository_directory),
-        os.path.realpath(repository_directory),
-    ):
-        if not os.path.isabs(candidate):
-            continue
-        stripped = candidate.rstrip("/")
-        if stripped and stripped not in candidates:
-            candidates.append(stripped)
-    return tuple(sorted(candidates, key=len, reverse=True))
-
-
-# A repository-root match must not be followed by another path/identifier
-# character (letter, digit, ``_``, or ``-``) — otherwise ``/Users/x/y`` would
-# wrongly match as a prefix of an unrelated sibling path like
-# ``/Users/x/yz/secret/file`` (leaking ``secret``) rather than leaving it to
-# the wholesale catch-all below. A literal ``/`` immediately after the root
-# already satisfies this (``/`` is not in the excluded class), so the same
-# boundary works for both "root continues as a relative path" and "root is a
-# bare mention" without needing two different lookaheads.
-_ROOT_BOUNDARY = r"(?![\w\-])"
-
-
-def _scrub_diagnostics(stderr_text: str, repository_directory: str | None) -> str:
-    """Return ``stderr_text`` with local filesystem paths scrubbed.
-
-    Only ever reached for the narrow ``_DIAGNOSTIC_COMMANDS`` allowlist, and
-    only on the no-JSON-body failure path. Two passes:
-
-    1. Every known absolute form of the repository root Swamp actually ran in
-       is relativized in place: ``<root>/relative/file.ts:42:3`` becomes
-       ``relative/file.ts:42:3`` (a bare mention of the root with no
-       trailing path becomes the placeholder ``<repo>``). This is the
-       useful, intended case — a lint diagnostic's file:line, rule name, and
-       fix hint survive untouched. Each substitution is boundary-checked (see
-       ``_ROOT_BOUNDARY``) so the root can only match a complete path
-       component, never a prefix of an unrelated longer one.
-    2. Any absolute path that survives that pass — a different sensitive
-       location entirely (a bundle cache path, a temp directory, a symlinked
-       ancestor the first pass did not anticipate, or an unrelated sibling
-       path the boundary check in step 1 correctly declined to touch), or any
-       path at all when no repository root is known — is replaced wholesale
-       with an opaque ``<path>`` placeholder. It is never partially
-       relativized, because there is no way to tell safe relative structure
-       from a sensitive identifier inside a path this function does not
-       recognize as the repository root.
-    """
-    if not isinstance(stderr_text, str) or stderr_text == "":
-        return ""
-
-    scrubbed = stderr_text
-    for root in _repository_root_candidates(repository_directory):
-        escaped_root = re.escape(root)
-        scrubbed = re.sub(escaped_root + r"/", "", scrubbed)
-        scrubbed = re.sub(escaped_root + _ROOT_BOUNDARY, _REPOSITORY_ROOT_PLACEHOLDER, scrubbed)
-
-    return _ABSOLUTE_PATH_TOKEN_PATTERN.sub(_ABSOLUTE_PATH_PLACEHOLDER, scrubbed)
 
 
 # Commands that accept caller-supplied ``--input name=value`` pairs. Model
@@ -358,20 +246,10 @@ def run_swamp_command(
     with no JSON body — it crashed or fatally errored (a broken extension
     bundle, a missing export, an unusable environment) and wrote only a
     stderr diagnostic — the result is ``error="process_failed"`` with
-    ``data=None``. That diagnostic is not surfaced for most commands (it can
-    carry absolute local paths and private identifiers), but the distinct code
-    lets the caller tell an environment/tooling failure apart from a plain
-    rejection instead of seeing an opaque ``process_error`` for both.
-
-    For the narrow allowlist in ``_DIAGNOSTIC_COMMANDS`` — ``model_validate``,
-    ``workflow_validate``, ``extension_quality``, and ``extension_fmt`` — this
-    same ``process_failed`` path additionally populates ``diagnostics`` with
-    stderr run through ``_scrub_diagnostics``, so the file:line, lint rule, and
-    fix hint an agent needs to self-correct its own authoring loop are
-    visible, with every absolute filesystem path scrubbed to a repository-
-    relative path or an opaque placeholder. Every command outside that
-    allowlist leaves ``diagnostics`` as ``None`` and keeps stderr fully
-    withheld, exactly as before.
+    ``data=None``. That diagnostic is not surfaced (it can carry absolute
+    local paths and private identifiers), but the distinct code lets the
+    caller tell an environment/tooling failure apart from a plain rejection
+    instead of seeing an opaque ``process_error`` for both.
     """
     if timeout is _UNSET_TIMEOUT:
         timeout = _COMMAND_TIMEOUT_SECONDS.get(command, DEFAULT_TIMEOUT_SECONDS)
@@ -430,16 +308,9 @@ def run_swamp_command(
         # (unknown model, duplicate version) — surface the body. A non-zero
         # exit with no body is the swamp process itself failing (a crash, a
         # broken bundle); mark it distinctly so it is not mistaken for a
-        # rejection. stderr stays withheld either way (boundary) — except for
-        # the narrow diagnostic-command allowlist, where a scrubbed version of
-        # it is surfaced in ``diagnostics`` so the caller can self-correct.
+        # rejection. stderr stays withheld either way (boundary).
         if body is None:
-            diagnostics = None
-            if command in _DIAGNOSTIC_COMMANDS and completed.stderr:
-                diagnostics = _scrub_diagnostics(completed.stderr, repository_directory) or None
-            return SwampCliResult(
-                ok=False, data=None, error="process_failed", diagnostics=diagnostics
-            )
+            return SwampCliResult(ok=False, data=None, error="process_failed")
         return SwampCliResult(ok=False, data=body, error="process_error")
 
     data = _parse_json_documents(completed.stdout or "")

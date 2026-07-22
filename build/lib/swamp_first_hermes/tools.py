@@ -217,37 +217,13 @@ SWAMP_EXTENSION_QUALITY_SCHEMA = {
     "name": "swamp_extension_quality",
     "description": (
         "Score an extension against the Swamp Club quality rubric from its "
-        "manifest path, and cache the packaged tarball for reuse by publish. "
-        "On a fatal failure with no result body, a scrubbed diagnostics field "
-        "(file, line, lint rule, fix hint; local paths reduced to "
-        "repository-relative) is included so the failure can be corrected."
+        "manifest path, and cache the packaged tarball for reuse by publish."
     ),
     "parameters": _parameters(
         {
             "manifest_path": {
                 "type": "string",
                 "description": "Path to the extension manifest to score.",
-            }
-        },
-        required=("manifest_path",),
-    ),
-}
-
-SWAMP_EXTENSION_FMT_SCHEMA = {
-    "name": "swamp_extension_fmt",
-    "description": (
-        "Auto-format a Swamp extension's source from its manifest path. This "
-        "is the fix for what `swamp_extension_quality` tells you to run. On a "
-        "fatal failure with no result body, a scrubbed diagnostics field "
-        "(file, line, lint rule, fix hint; local paths reduced to "
-        "repository-relative) is included so remaining lint issues the "
-        "formatter could not fix automatically are visible and actionable."
-    ),
-    "parameters": _parameters(
-        {
-            "manifest_path": {
-                "type": "string",
-                "description": "Path to the extension manifest to format.",
             }
         },
         required=("manifest_path",),
@@ -431,7 +407,6 @@ def _call_swamp_command(
     *,
     required_argument_names: tuple[str, ...] = (),
     optional_argument_names: tuple[str, ...] = (),
-    include_diagnostics: bool = False,
 ) -> str:
     """Call an allowlisted Swamp command and return normalized Hermes JSON.
 
@@ -439,11 +414,6 @@ def _call_swamp_command(
     non-empty string; a missing or invalid one short-circuits with
     ``missing_argument`` before the Swamp CLI adapter is touched. Optional
     arguments are appended only when present and non-null.
-
-    ``include_diagnostics`` must be set only by the small allowlist of
-    authoring/diagnostic tool handlers (validate x2, quality, fmt) — it adds
-    the adapter's scrubbed ``diagnostics`` field to the returned JSON. Every
-    other tool handler leaves it unset, so its JSON shape is unchanged.
     """
     arguments = args if isinstance(args, Mapping) else {}
     positional: list[str] = []
@@ -488,12 +458,8 @@ def _call_swamp_command(
             **timeout_arguments,
         )
         payload = {"ok": result.ok, "data": result.data, "error": result.error}
-        if include_diagnostics:
-            payload["diagnostics"] = result.diagnostics
     except Exception:
         payload = {"ok": False, "data": None, "error": "execution_error"}
-        if include_diagnostics:
-            payload["diagnostics"] = None
     return json.dumps(payload, ensure_ascii=False)
 
 
@@ -507,10 +473,7 @@ def swamp_model_create(args: dict[str, object], **kwargs: Any) -> str:
 def swamp_model_validate(args: dict[str, object], **kwargs: Any) -> str:
     del kwargs
     return _call_swamp_command(
-        "model_validate",
-        args,
-        optional_argument_names=("name",),
-        include_diagnostics=True,
+        "model_validate", args, optional_argument_names=("name",)
     )
 
 
@@ -531,10 +494,7 @@ def swamp_workflow_create(args: dict[str, object], **kwargs: Any) -> str:
 def swamp_workflow_validate(args: dict[str, object], **kwargs: Any) -> str:
     del kwargs
     return _call_swamp_command(
-        "workflow_validate",
-        args,
-        optional_argument_names=("name",),
-        include_diagnostics=True,
+        "workflow_validate", args, optional_argument_names=("name",)
     )
 
 
@@ -560,21 +520,7 @@ def swamp_extension_pull(args: dict[str, object], **kwargs: Any) -> str:
 def swamp_extension_quality(args: dict[str, object], **kwargs: Any) -> str:
     del kwargs
     return _call_swamp_command(
-        "extension_quality",
-        args,
-        required_argument_names=("manifest_path",),
-        include_diagnostics=True,
-    )
-
-
-def swamp_extension_fmt(args: dict[str, object], **kwargs: Any) -> str:
-    """Auto-format an extension and surface any remaining scrubbed diagnostics."""
-    del kwargs
-    return _call_swamp_command(
-        "extension_fmt",
-        args,
-        required_argument_names=("manifest_path",),
-        include_diagnostics=True,
+        "extension_quality", args, required_argument_names=("manifest_path",)
     )
 
 
