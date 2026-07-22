@@ -17,6 +17,7 @@ from .policy import (
 from .tools import (
     SWAMP_DEFINITION_WRITE_SCHEMA,
     SWAMP_EXTENSION_FMT_SCHEMA,
+    SWAMP_EXTENSION_INFO_SCHEMA,
     SWAMP_EXTENSION_PULL_SCHEMA,
     SWAMP_EXTENSION_PUSH_SCHEMA,
     SWAMP_EXTENSION_QUALITY_SCHEMA,
@@ -25,6 +26,8 @@ from .tools import (
     SWAMP_MODEL_METHOD_RUN_SCHEMA,
     SWAMP_MODEL_SEARCH_SCHEMA,
     SWAMP_MODEL_SET_CONFIG_SCHEMA,
+    SWAMP_MODEL_TYPE_DESCRIBE_SCHEMA,
+    SWAMP_MODEL_TYPE_SEARCH_SCHEMA,
     SWAMP_MODEL_VALIDATE_SCHEMA,
     SWAMP_WORKFLOW_CREATE_SCHEMA,
     SWAMP_WORKFLOW_RUN_SCHEMA,
@@ -33,6 +36,7 @@ from .tools import (
     SWAMP_WORKFLOW_VALIDATE_SCHEMA,
     swamp_definition_write,
     swamp_extension_fmt,
+    swamp_extension_info,
     swamp_extension_pull,
     swamp_extension_push,
     swamp_extension_quality,
@@ -41,6 +45,8 @@ from .tools import (
     swamp_model_method_run,
     swamp_model_search,
     swamp_model_set_config,
+    swamp_model_type_describe,
+    swamp_model_type_search,
     swamp_model_validate,
     swamp_workflow_create,
     swamp_workflow_run,
@@ -115,6 +121,18 @@ def register(ctx: Any) -> None:
         handler=swamp_model_search,
     )
     ctx.register_tool(
+        name="swamp_model_type_search",
+        toolset=_TOOLSET,
+        schema=SWAMP_MODEL_TYPE_SEARCH_SCHEMA,
+        handler=swamp_model_type_search,
+    )
+    ctx.register_tool(
+        name="swamp_model_type_describe",
+        toolset=_TOOLSET,
+        schema=SWAMP_MODEL_TYPE_DESCRIBE_SCHEMA,
+        handler=swamp_model_type_describe,
+    )
+    ctx.register_tool(
         name="swamp_workflow_search",
         toolset=_TOOLSET,
         schema=SWAMP_WORKFLOW_SEARCH_SCHEMA,
@@ -167,6 +185,12 @@ def register(ctx: Any) -> None:
         toolset=_TOOLSET,
         schema=SWAMP_EXTENSION_SEARCH_SCHEMA,
         handler=swamp_extension_search,
+    )
+    ctx.register_tool(
+        name="swamp_extension_info",
+        toolset=_TOOLSET,
+        schema=SWAMP_EXTENSION_INFO_SCHEMA,
+        handler=swamp_extension_info,
     )
     ctx.register_tool(
         name="swamp_extension_pull",

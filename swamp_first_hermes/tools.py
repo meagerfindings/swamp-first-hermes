@@ -66,6 +66,35 @@ SWAMP_MODEL_SEARCH_SCHEMA = {
     "parameters": _COMMON_PARAMETERS,
 }
 
+SWAMP_MODEL_TYPE_SEARCH_SCHEMA = {
+    "name": "swamp_model_type_search",
+    "description": (
+        "Search installed Swamp model types before creating or choosing a model. "
+        "Lists all available types when query is omitted."
+    ),
+    "parameters": _parameters(
+        {"query": {"type": "string", "description": "Optional type search query."}},
+        required=(),
+    ),
+}
+
+SWAMP_MODEL_TYPE_DESCRIBE_SCHEMA = {
+    "name": "swamp_model_type_describe",
+    "description": (
+        "Describe an installed Swamp model type, including its global arguments, "
+        "methods, method inputs, and resources."
+    ),
+    "parameters": _parameters(
+        {
+            "model_type": {
+                "type": "string",
+                "description": "The installed model type to describe.",
+            }
+        },
+        required=("model_type",),
+    ),
+}
+
 SWAMP_WORKFLOW_SEARCH_SCHEMA = {
     "name": "swamp_workflow_search",
     "description": "Read-only Swamp evidence discovery: list searchable workflows as JSON.",
@@ -194,6 +223,23 @@ SWAMP_EXTENSION_SEARCH_SCHEMA = {
     "parameters": _parameters(
         {"query": {"type": "string", "description": "Optional search query."}},
         required=(),
+    ),
+}
+
+SWAMP_EXTENSION_INFO_SCHEMA = {
+    "name": "swamp_extension_info",
+    "description": (
+        "Inspect a registry extension before pulling it, including its model "
+        "types, methods, arguments, quality score, and repository metadata."
+    ),
+    "parameters": _parameters(
+        {
+            "extension": {
+                "type": "string",
+                "description": "The registry extension identifier to inspect.",
+            }
+        },
+        required=("extension",),
     ),
 }
 
@@ -443,6 +489,22 @@ def swamp_model_search(args: dict[str, object], **kwargs: Any) -> str:
     return _run_read_only_search("model_search", args)
 
 
+def swamp_model_type_search(args: dict[str, object], **kwargs: Any) -> str:
+    """Search installed model types through the closed Swamp CLI adapter."""
+    del kwargs
+    return _call_swamp_command(
+        "model_type_search", args, optional_argument_names=("query",)
+    )
+
+
+def swamp_model_type_describe(args: dict[str, object], **kwargs: Any) -> str:
+    """Describe one installed model type through the closed CLI adapter."""
+    del kwargs
+    return _call_swamp_command(
+        "model_type_describe", args, required_argument_names=("model_type",)
+    )
+
+
 def swamp_workflow_search(args: dict[str, object], **kwargs: Any) -> str:
     """Return normalized JSON from the fixed read-only ``swamp workflow search`` call."""
     del kwargs
@@ -597,6 +659,13 @@ def swamp_extension_search(args: dict[str, object], **kwargs: Any) -> str:
     del kwargs
     return _call_swamp_command(
         "extension_search", args, optional_argument_names=("query",)
+    )
+
+
+def swamp_extension_info(args: dict[str, object], **kwargs: Any) -> str:
+    del kwargs
+    return _call_swamp_command(
+        "extension_info", args, required_argument_names=("extension",)
     )
 
 

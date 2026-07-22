@@ -22,6 +22,8 @@ def test_allowlist_maps_read_only_commands_to_fixed_json_arguments() -> None:
     assert ALLOWED_COMMANDS == frozenset(
         {
             "model_search",
+            "model_type_search",
+            "model_type_describe",
             "workflow_search",
             "model_create",
             "model_validate",
@@ -30,11 +32,28 @@ def test_allowlist_maps_read_only_commands_to_fixed_json_arguments() -> None:
             "workflow_validate",
             "workflow_run",
             "extension_search",
+            "extension_info",
             "extension_pull",
             "extension_quality",
             "extension_fmt",
             "extension_push",
         }
+    )
+    assert build_command("model_type_search", "git") == (
+        "swamp",
+        "model",
+        "type",
+        "search",
+        "git",
+        "--json",
+    )
+    assert build_command("model_type_describe", "@twonines/git-workspace") == (
+        "swamp",
+        "model",
+        "type",
+        "describe",
+        "@twonines/git-workspace",
+        "--json",
     )
     assert build_command("model_search") == ("swamp", "model", "search", "--json")
     assert build_command("workflow_search") == (
@@ -66,6 +85,11 @@ def test_allowlist_maps_read_only_commands_to_fixed_json_arguments() -> None:
         ("workflow_run", ("nightly-check",), ("workflow", "run", "nightly-check")),
         ("extension_search", (), ("extension", "search")),
         ("extension_search", ("llm",), ("extension", "search", "llm")),
+        (
+            "extension_info",
+            ("@goodcraft/github",),
+            ("extension", "info", "@goodcraft/github"),
+        ),
         (
             "extension_pull",
             ("@keeb/ollama",),

@@ -19,6 +19,8 @@ from typing import Any
 # commands that accept caller-supplied values.
 _COMMAND_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "model_search": ("model", "search"),
+    "model_type_search": ("model", "type", "search"),
+    "model_type_describe": ("model", "type", "describe"),
     "workflow_search": ("workflow", "search"),
     "model_create": ("model", "create"),
     "model_validate": ("model", "validate"),
@@ -27,6 +29,7 @@ _COMMAND_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "workflow_validate": ("workflow", "validate"),
     "workflow_run": ("workflow", "run"),
     "extension_search": ("extension", "search"),
+    "extension_info": ("extension", "info"),
     "extension_pull": ("extension", "pull"),
     "extension_quality": ("extension", "quality"),
     "extension_fmt": ("extension", "fmt"),
@@ -38,6 +41,8 @@ ALLOWED_COMMANDS = frozenset(_COMMAND_ARGUMENTS)
 # command accepts, appended after its fixed prefix and before ``--json``.
 _COMMAND_POSITIONAL_ARITY: dict[str, tuple[int, int]] = {
     "model_search": (0, 0),
+    "model_type_search": (0, 1),
+    "model_type_describe": (1, 1),
     "workflow_search": (0, 0),
     "model_create": (2, 2),
     "model_validate": (0, 1),
@@ -46,6 +51,7 @@ _COMMAND_POSITIONAL_ARITY: dict[str, tuple[int, int]] = {
     "workflow_validate": (0, 1),
     "workflow_run": (1, 1),
     "extension_search": (0, 1),
+    "extension_info": (1, 1),
     "extension_pull": (1, 1),
     "extension_quality": (1, 1),
     "extension_fmt": (1, 1),
@@ -63,6 +69,9 @@ _COMMAND_TIMEOUT_SECONDS: dict[str, float] = {
     "extension_quality": 120.0,
     "extension_fmt": 60.0,
     "extension_search": 60.0,
+    "extension_info": 60.0,
+    "model_type_search": 60.0,
+    "model_type_describe": 60.0,
     "model_method_run": 300.0,
     "workflow_run": 600.0,
     "model_validate": 60.0,

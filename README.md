@@ -14,15 +14,18 @@ environment.
 
 ## Current scope
 
-The plugin registers 16 tools, grouped below by how much they can change:
+The plugin registers 19 tools, grouped below by how much they can change:
 
 ### Read-only
 
 | Tool | Purpose |
 |---|---|
 | `swamp_model_search` | List Swamp models (`swamp model search --json`). |
+| `swamp_model_type_search` | Search installed model types before choosing or creating an instance. |
+| `swamp_model_type_describe` | Inspect a model type's methods, inputs, global arguments, and resources. |
 | `swamp_workflow_search` | List Swamp workflows (`swamp workflow search --json`). |
 | `swamp_extension_search` | Search the Swamp extension registry. |
+| `swamp_extension_info` | Inspect an extension's content and method contracts before pulling it. |
 | `swamp_model_validate` | Validate a model definition against its schema. |
 | `swamp_workflow_validate` | Validate a workflow definition against its schema. |
 | `swamp_extension_quality` | Score an extension manifest against the Swamp Club quality rubric. Read-only-ish: it caches a packaged tarball on disk for reuse by a later publish, but makes no registry or Swamp-state change itself. |

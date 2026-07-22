@@ -10,12 +10,15 @@ import pytest
 
 from swamp_first_hermes.tools import (
     swamp_extension_fmt,
+    swamp_extension_info,
     swamp_extension_pull,
     swamp_extension_push,
     swamp_extension_quality,
     swamp_extension_search,
     swamp_model_create,
     swamp_model_method_run,
+    swamp_model_type_describe,
+    swamp_model_type_search,
     swamp_model_validate,
     swamp_workflow_create,
     swamp_workflow_run,
@@ -46,6 +49,20 @@ class _FakeResult:
         "include_diagnostics",
     ),
     (
+        (
+            swamp_model_type_search,
+            {"query": "git"},
+            "model_type_search",
+            ("git",),
+            False,
+        ),
+        (
+            swamp_model_type_describe,
+            {"model_type": "@twonines/git-workspace"},
+            "model_type_describe",
+            ("@twonines/git-workspace",),
+            False,
+        ),
         (
             swamp_model_create,
             {"model_type": "aws-ec2", "name": "my-server"},
@@ -89,6 +106,13 @@ class _FakeResult:
             {"query": "llm"},
             "extension_search",
             ("llm",),
+            False,
+        ),
+        (
+            swamp_extension_info,
+            {"extension": "@goodcraft/github"},
+            "extension_info",
+            ("@goodcraft/github",),
             False,
         ),
         (
@@ -149,9 +173,11 @@ def test_wrapper_calls_the_matching_allowlisted_command(
     (
         (swamp_model_create, {"name": "only-one"}),
         (swamp_model_create, {"model_type": "aws-ec2"}),
+        (swamp_model_type_describe, {}),
         (swamp_model_method_run, {"model": "my-server"}),
         (swamp_workflow_create, {}),
         (swamp_workflow_run, {}),
+        (swamp_extension_info, {}),
         (swamp_extension_pull, {}),
         (swamp_extension_quality, {}),
         (swamp_extension_fmt, {}),

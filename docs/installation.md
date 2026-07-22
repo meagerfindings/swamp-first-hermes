@@ -132,9 +132,11 @@ It invokes the local `swamp` executable through a fixed, closed command
 mapping — every tool maps to one declared CLI subcommand prefix plus a
 bounded count of caller-supplied positional arguments, each passed as a
 discrete `argv` element, never interpolated into a shell string. That
-mapping is **not all read-only**: `swamp_model_search`, `swamp_workflow_search`,
-`swamp_extension_search`, `swamp_model_validate`, and `swamp_workflow_validate`
-are read-only, but `swamp_model_method_run`, `swamp_workflow_run`,
+mapping is **not all read-only**: `swamp_model_search`,
+`swamp_model_type_search`, `swamp_model_type_describe`,
+`swamp_workflow_search`, `swamp_extension_search`, `swamp_extension_info`,
+`swamp_model_validate`, and `swamp_workflow_validate` are read-only, but
+`swamp_model_method_run`, `swamp_workflow_run`,
 `swamp_extension_pull`, and `swamp_extension_push` execute or mutate, and
 `swamp_workflow_set_schedule` activates unattended execution. Separately,
 `swamp_definition_write` is not a `swamp` CLI call at all — it takes a
@@ -146,7 +148,7 @@ known Swamp definition convention; the write is immediately followed by the
 matching `swamp` validate/quality check, and a failed model or workflow
 validation reverts the previous content (or deletes a newly created file).
 See [the README's tool table](../README.md#current-scope) for the full
-15-tool breakdown by class. When a tool call omits `repository_path`, the
+19-tool breakdown by class. When a tool call omits `repository_path`, the
 Swamp CLI inherits Hermes's current working directory. A caller may instead
 supply `repository_path` for one tool call; it must be an existing directory.
 
@@ -190,8 +192,11 @@ against the intended local repository:
 
 - `swamp_model_search` performs the fixed read-only `swamp model search --json`
   query.
+- `swamp_model_type_search` finds installed model types, and
+  `swamp_model_type_describe` returns their method and input contracts.
 - `swamp_workflow_search` performs the fixed read-only `swamp workflow search
   --json` query.
+- `swamp_extension_info` inspects a registry package before it is pulled.
 
 For each tool, confirm that its returned JSON has `"ok": true` and that the
 returned data is appropriate evidence for the local repository. If the target
