@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .definition_write import set_workflow_schedule, write_definition
+from .model_config import set_model_config
 from .swamp_cli import DEFAULT_TIMEOUT_SECONDS, run_swamp_command
 
 
@@ -341,6 +342,44 @@ SWAMP_DEFINITION_WRITE_SCHEMA = {
     },
 }
 
+SWAMP_MODEL_SET_CONFIG_SCHEMA = {
+    "name": "swamp_model_set_config",
+    "description": (
+        "Set configuration fields (e.g. globalArguments, tags, vault "
+        "bindings) on an existing Swamp model instance, located by name — "
+        "no need to know the instance's on-disk file. Fields in config are "
+        "deep-merged into the instance's existing configuration: nested "
+        "objects have their keys merged recursively, other values are "
+        "replaced outright; there is no way to delete a key. Identity "
+        "fields (id, type, typeVersion, name, version) are refused — this "
+        "tool sets configuration, it never rewrites identity. The merged "
+        "instance is written and immediately validated (model validate); a "
+        "failed validation reverts the previous content. When a revert "
+        "happens on a fatal failure with no result body, a scrubbed "
+        "diagnostics field (file, line, lint rule, fix hint; local paths "
+        "reduced to repository-relative) is included so the revert can be "
+        "understood."
+    ),
+    "parameters": _parameters(
+        {
+            "name": {
+                "type": "string",
+                "description": "The model instance name whose configuration to set.",
+            },
+            "config": {
+                "type": "object",
+                "description": (
+                    "Configuration fields to deep-merge into the instance "
+                    "— e.g. globalArguments, tags, vault bindings. Identity "
+                    "fields (id, type, typeVersion, name, version) are "
+                    "refused. Nested objects are merged, not replaced."
+                ),
+            },
+        },
+        required=("name", "config"),
+    ),
+}
+
 SWAMP_WORKFLOW_SET_SCHEDULE_SCHEMA = {
     "name": "swamp_workflow_set_schedule",
     "description": (
@@ -637,6 +676,47 @@ def swamp_definition_write(args: dict[str, object], **kwargs: Any) -> str:
             "data": None,
             "error": "execution_error",
             "diagnostics": None,
+        }
+    return json.dumps(payload, ensure_ascii=False)
+
+
+def swamp_model_set_config(args: dict[str, object], **kwargs: Any) -> str:
+    """Deep-merge config into an existing model instance located by name.
+
+    Delegates the actual write to ``write_definition`` via
+    ``set_model_config``, so it gets path containment, immediate
+    ``model_validate``, and revert-on-failure with scrubbed diagnostics for
+    free.
+    """
+    del kwargs
+    arguments = args if isinstance(args, Mapping) else {}
+    try:
+        result, relative_path = set_model_config(
+            arguments.get("repository_path"),
+            arguments.get("name"),
+            arguments.get("config"),
+            timeout=arguments.get("timeout", DEFAULT_TIMEOUT_SECONDS),
+        )
+        payload = {
+            "ok": result.ok,
+            "validated": result.validated,
+            "reverted": result.reverted,
+            "deleted": result.deleted,
+            "data": result.validation_data,
+            "error": result.error,
+            "diagnostics": result.diagnostics,
+            "relative_path": relative_path,
+        }
+    except Exception:
+        payload = {
+            "ok": False,
+            "validated": False,
+            "reverted": False,
+            "deleted": False,
+            "data": None,
+            "error": "execution_error",
+            "diagnostics": None,
+            "relative_path": None,
         }
     return json.dumps(payload, ensure_ascii=False)
 

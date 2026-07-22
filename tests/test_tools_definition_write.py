@@ -7,7 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from swamp_first_hermes.tools import swamp_definition_write, swamp_workflow_set_schedule
+from swamp_first_hermes.definition_write import DefinitionWriteResult
+from swamp_first_hermes.tools import (
+    swamp_definition_write,
+    swamp_model_set_config,
+    swamp_workflow_set_schedule,
+)
 
 
 class _FakeValidateResult:
@@ -148,6 +153,126 @@ def test_definition_write_handler_surfaces_scrubbed_diagnostics_on_revert(
     assert payload["ok"] is False
     assert payload["reverted"] is True
     assert payload["diagnostics"] == "thing.yaml:3:5 error: bad type"
+
+
+# --- swamp_model_set_config ---------------------------------------------------
+
+
+_MODEL_SET_CONFIG_PAYLOAD_KEYS = {
+    "ok",
+    "validated",
+    "reverted",
+    "deleted",
+    "data",
+    "error",
+    "diagnostics",
+    "relative_path",
+}
+
+
+def test_model_set_config_handler_succeeds_and_serializes_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canned = DefinitionWriteResult(True, True, False, False, {"valid": True}, None)
+    monkeypatch.setattr(
+        "swamp_first_hermes.tools.set_model_config",
+        lambda *a, **k: (canned, "models/command/shell/809adf4b.yaml"),
+    )
+
+    payload = json.loads(
+        swamp_model_set_config(
+            {
+                "repository_path": "/tmp/whatever",
+                "name": "edittest",
+                "config": {"globalArguments": {"a": "b"}},
+            }
+        )
+    )
+
+    assert payload == {
+        "ok": True,
+        "validated": True,
+        "reverted": False,
+        "deleted": False,
+        "data": {"valid": True},
+        "error": None,
+        "diagnostics": None,
+        "relative_path": "models/command/shell/809adf4b.yaml",
+    }
+
+
+def test_model_set_config_handler_surfaces_scrubbed_diagnostics_on_revert(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canned = DefinitionWriteResult(
+        False, True, True, False, None, "process_failed", "thing.yaml:3:5 error: bad type"
+    )
+    monkeypatch.setattr(
+        "swamp_first_hermes.tools.set_model_config",
+        lambda *a, **k: (canned, "models/command/shell/809adf4b.yaml"),
+    )
+
+    payload = json.loads(
+        swamp_model_set_config(
+            {"repository_path": "/tmp", "name": "edittest", "config": {"tags": {"a": "b"}}}
+        )
+    )
+
+    assert payload["ok"] is False
+    assert payload["reverted"] is True
+    assert payload["diagnostics"] == "thing.yaml:3:5 error: bad type"
+    assert payload["relative_path"] == "models/command/shell/809adf4b.yaml"
+
+
+def test_model_set_config_handler_normalizes_an_unexpected_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raiser(*_args: object, **_kwargs: object):
+        raise RuntimeError("private detail")
+
+    monkeypatch.setattr("swamp_first_hermes.tools.set_model_config", raiser)
+
+    payload = json.loads(
+        swamp_model_set_config(
+            {"repository_path": "/tmp", "name": "edittest", "config": {"tags": {"a": "b"}}}
+        )
+    )
+
+    assert payload == {
+        "ok": False,
+        "validated": False,
+        "reverted": False,
+        "deleted": False,
+        "data": None,
+        "error": "execution_error",
+        "diagnostics": None,
+        "relative_path": None,
+    }
+
+
+def test_model_set_config_handler_payload_keys_stable_across_success_and_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The JSON payload shape must not change between the success path and
+    the ``except Exception`` fallback — every key present in both."""
+    canned = DefinitionWriteResult(True, True, False, False, {"valid": True}, None)
+    monkeypatch.setattr(
+        "swamp_first_hermes.tools.set_model_config",
+        lambda *a, **k: (canned, "models/command/shell/809adf4b.yaml"),
+    )
+    success_payload = json.loads(
+        swamp_model_set_config({"name": "edittest", "config": {"tags": {}}})
+    )
+    assert set(success_payload.keys()) == _MODEL_SET_CONFIG_PAYLOAD_KEYS
+
+    def raiser(*_args: object, **_kwargs: object):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("swamp_first_hermes.tools.set_model_config", raiser)
+    exception_payload = json.loads(
+        swamp_model_set_config({"name": "edittest", "config": {"tags": {}}})
+    )
+    assert set(exception_payload.keys()) == _MODEL_SET_CONFIG_PAYLOAD_KEYS
 
 
 def test_set_schedule_handler_requires_confirmation(tmp_path: Path) -> None:

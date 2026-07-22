@@ -24,6 +24,7 @@ from .tools import (
     SWAMP_MODEL_CREATE_SCHEMA,
     SWAMP_MODEL_METHOD_RUN_SCHEMA,
     SWAMP_MODEL_SEARCH_SCHEMA,
+    SWAMP_MODEL_SET_CONFIG_SCHEMA,
     SWAMP_MODEL_VALIDATE_SCHEMA,
     SWAMP_WORKFLOW_CREATE_SCHEMA,
     SWAMP_WORKFLOW_RUN_SCHEMA,
@@ -39,6 +40,7 @@ from .tools import (
     swamp_model_create,
     swamp_model_method_run,
     swamp_model_search,
+    swamp_model_set_config,
     swamp_model_validate,
     swamp_workflow_create,
     swamp_workflow_run,
@@ -135,6 +137,12 @@ def register(ctx: Any) -> None:
         toolset=_TOOLSET,
         schema=SWAMP_MODEL_METHOD_RUN_SCHEMA,
         handler=swamp_model_method_run,
+    )
+    ctx.register_tool(
+        name="swamp_model_set_config",
+        toolset=_TOOLSET,
+        schema=SWAMP_MODEL_SET_CONFIG_SCHEMA,
+        handler=swamp_model_set_config,
     )
     ctx.register_tool(
         name="swamp_workflow_create",
