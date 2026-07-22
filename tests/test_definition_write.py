@@ -618,7 +618,40 @@ def test_extension_write_is_kept_when_the_quality_rubric_fails(
     assert result.reverted is False
     assert result.deleted is False
     assert result.validation_data == {"status": "failed", "missing": ["rich-readme"]}
+    assert result.diagnostics is None
     assert target.read_text() == "# much better\n"
+
+
+def test_extension_write_is_kept_and_surfaces_scrubbed_diagnostics_on_process_failed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A broken-bundle ``process_failed`` carries no rubric body, so the
+    scrubbed ``diagnostics`` string is the only actionable information the
+    caller gets. The file is still kept, matching the quality-rubric lane."""
+    extension = tmp_path / "extensions" / "models" / "owner" / "thing"
+    extension.mkdir(parents=True)
+    (extension / "manifest.yaml").write_text("name: thing\n")
+    target = extension / "model.ts"
+    target.write_text("old\n")
+
+    monkeypatch.setattr(
+        "swamp_first_hermes.definition_write.run_swamp_command",
+        lambda *a, **k: _FakeResult(
+            False, None, "process_failed", "model.ts:1:1 error: bad bundle"
+        ),
+    )
+
+    result = write_definition(
+        tmp_path, "extensions/models/owner/thing/model.ts", "export const x = 1;\n"
+    )
+
+    assert result.ok is True
+    assert result.validated is False
+    assert result.reverted is False
+    assert result.deleted is False
+    assert result.error == "process_failed"
+    assert result.diagnostics == "model.ts:1:1 error: bad bundle"
+    assert target.read_text() == "export const x = 1;\n"
 
 
 def test_model_write_still_reverts_when_validation_fails(

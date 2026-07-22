@@ -398,7 +398,7 @@ def _write_validate_or_revert(
     # no grace period.
     if kind == "extension":
         return DefinitionWriteResult(
-            True, False, False, False, validation.data, validation.error
+            True, False, False, False, validation.data, validation.error, validation.diagnostics
         )
 
     # Captured only here, on the fail-closed model/workflow lane that actually
