@@ -50,6 +50,12 @@ that already invoked it, on a fixed, code-reviewed allowlist — not a general
 loosening of what may be committed to or read from this repository, and nothing
 above about local paths, credentials, or private identifiers is relaxed by it.
 
+The extension check/test tools similarly expose only bounded, path-scrubbed
+diagnostics and manifest-declared repository-relative filenames. The review
+preparation tool returns only the review filename (not its absolute temporary
+path) and bounded structured warnings. It invokes `extension push` exclusively
+with `--dry-run`; actual publication remains a separate `confirmed: true` gate.
+
 ## What may be public
 
 Public contributions may include generic source code, tests using synthetic values, and documentation that uses neutral placeholders. Documentation must describe capabilities accurately and must not imply that a planned feature is already implemented.

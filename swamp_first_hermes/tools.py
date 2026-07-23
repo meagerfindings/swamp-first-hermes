@@ -9,6 +9,7 @@ from typing import Any
 from .definition_write import set_workflow_schedule, write_definition
 from .model_config import set_model_config
 from .swamp_cli import DEFAULT_TIMEOUT_SECONDS, run_swamp_command
+from .extension_verification import prepare_extension_review, run_extension_verification
 
 
 _COMMON_PARAMETERS = {
@@ -298,6 +299,53 @@ SWAMP_EXTENSION_FMT_SCHEMA = {
             }
         },
         required=("manifest_path",),
+    ),
+}
+
+SWAMP_EXTENSION_CHECK_SCHEMA = {
+    "name": "swamp_extension_check",
+    "description": "Type-check only manifest-declared TypeScript extension files with Swamp's bundled Deno.",
+    "parameters": _parameters({"manifest_path": {"type": "string"}}, ("manifest_path",)),
+}
+
+SWAMP_EXTENSION_TEST_SCHEMA = {
+    "name": "swamp_extension_test",
+    "description": "Run only manifest-declared sibling *_test.ts files with read access limited to the package.",
+    "parameters": _parameters({"manifest_path": {"type": "string"}}, ("manifest_path",)),
+}
+
+SWAMP_EXTENSION_REVIEW_PREPARE_SCHEMA = {
+    "name": "swamp_extension_review_prepare",
+    "description": (
+        "Record a content-hash-bound adversarial review after two safe extension push dry-runs. "
+        "Never publishes to the registry."
+    ),
+    "parameters": _parameters(
+        {
+            "manifest_path": {"type": "string"},
+            "review": {
+                "type": "object",
+                "properties": {
+                    "reviewed_at": {"type": "string", "description": "ISO-8601 review time."},
+                    "dimensions": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "verdict": {"type": "string", "enum": ["pass", "issue", "na", "pending"]},
+                                "note": {"type": "string", "minLength": 12},
+                            },
+                            "required": ["id", "verdict", "note"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+                "required": ["reviewed_at", "dimensions"],
+                "additionalProperties": False,
+            },
+        },
+        ("manifest_path", "review"),
     ),
 }
 
@@ -695,6 +743,24 @@ def swamp_extension_fmt(args: dict[str, object], **kwargs: Any) -> str:
         required_argument_names=("manifest_path",),
         include_diagnostics=True,
     )
+
+
+def swamp_extension_check(args: dict[str, object], **kwargs: Any) -> str:
+    del kwargs
+    arguments = args if isinstance(args, Mapping) else {}
+    return json.dumps(run_extension_verification(arguments, tests=False), ensure_ascii=False)
+
+
+def swamp_extension_test(args: dict[str, object], **kwargs: Any) -> str:
+    del kwargs
+    arguments = args if isinstance(args, Mapping) else {}
+    return json.dumps(run_extension_verification(arguments, tests=True), ensure_ascii=False)
+
+
+def swamp_extension_review_prepare(args: dict[str, object], **kwargs: Any) -> str:
+    del kwargs
+    arguments = args if isinstance(args, Mapping) else {}
+    return json.dumps(prepare_extension_review(arguments), ensure_ascii=False)
 
 
 def swamp_extension_push(args: dict[str, object], **kwargs: Any) -> str:

@@ -1,5 +1,5 @@
 name: swamp_first_hermes
-version: 0.6.0
+version: 0.7.0
 description: "Swamp discovery, scoped authoring, and evidence tools with an opt-in policy guard."
 kind: standalone
 provides_tools:
@@ -19,6 +19,9 @@ provides_tools:
   - swamp_extension_pull
   - swamp_extension_quality
   - swamp_extension_fmt
+  - swamp_extension_check
+  - swamp_extension_test
+  - swamp_extension_review_prepare
   - swamp_extension_push
   - swamp_definition_write
   - swamp_workflow_set_schedule

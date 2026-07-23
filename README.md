@@ -14,7 +14,7 @@ environment.
 
 ## Current scope
 
-The plugin registers 19 tools, grouped below by how much they can change:
+The plugin registers 22 tools, grouped below by how much they can change:
 
 ### Read-only
 
@@ -29,6 +29,9 @@ The plugin registers 19 tools, grouped below by how much they can change:
 | `swamp_model_validate` | Validate a model definition against its schema. |
 | `swamp_workflow_validate` | Validate a workflow definition against its schema. |
 | `swamp_extension_quality` | Score an extension manifest against the Swamp Club quality rubric. Read-only-ish: it caches a packaged tarball on disk for reuse by a later publish, but makes no registry or Swamp-state change itself. |
+| `swamp_extension_check` | Type-check manifest-declared TypeScript with Swamp's bundled Deno. |
+| `swamp_extension_test` | Run only manifest-declared sibling tests with package-only read permission. |
+| `swamp_extension_review_prepare` | Validate and atomically record the package-specific, content-hash-bound adversarial review using two `push --dry-run` passes; never publishes. |
 
 ### Inert-write (writes a file; never itself causes anything to run)
 
