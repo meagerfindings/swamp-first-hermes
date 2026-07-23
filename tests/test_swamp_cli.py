@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
+import math
 import subprocess
 from unittest.mock import Mock
 
@@ -544,12 +546,7 @@ def test_build_command_rejects_non_allowlisted_commands() -> None:
 # --- method/workflow inputs ---------------------------------------------------
 
 
-def test_build_command_appends_input_pairs_as_discrete_argv_elements() -> None:
-    """Each ``--input name=value`` pair is its own argv element.
-
-    The git-workspace model takes its target repository as a method argument,
-    so a tool that cannot pass inputs cannot drive it at all.
-    """
+def test_build_command_uses_stdin_flag_for_inputs() -> None:
     command = build_command(
         "model_method_run",
         "unifi-release-safety-repo",
@@ -562,20 +559,19 @@ def test_build_command_appends_input_pairs_as_discrete_argv_elements() -> None:
         "method",
         "run",
     )
-    assert "--input" in command
-    assert "project=owner/repo" in command
-    assert "localPath=/opt/data/repo" in command
+    assert "--stdin" in command
+    assert "--input" not in command
     assert command[-1] == "--json"
 
 
-def test_input_values_containing_shell_metacharacters_stay_one_argv_element() -> None:
+def test_input_values_are_not_added_to_argv() -> None:
     command = build_command(
         "model_method_run",
         "model",
         "method",
         inputs={"message": "fix; rm -rf / && echo $(whoami)"},
     )
-    assert "message=fix; rm -rf / && echo $(whoami)" in command
+    assert "fix; rm -rf / && echo $(whoami)" not in command
 
 
 def test_build_command_rejects_inputs_for_commands_that_do_not_accept_them() -> None:
@@ -597,12 +593,53 @@ def test_build_command_rejects_input_values_containing_nul() -> None:
         build_command("model_method_run", "m", "meth", inputs={"a": "b\x00c"})
 
 
-def test_build_command_renders_scalar_input_values() -> None:
+@pytest.mark.parametrize(
+    "inputs",
+    [
+        {"nested": {"bad\x00key": "value"}},
+        {"nested": ["bad\x00value"]},
+        {"nested": [math.nan]},
+        {"nested": {"number": math.inf}},
+    ],
+)
+def test_build_command_rejects_nested_nul_and_nonfinite_values(inputs: dict[str, object]) -> None:
+    with pytest.raises(ValueError):
+        build_command("model_method_run", "m", "meth", inputs=inputs)
+
+
+def test_build_command_supports_primitive_input_values() -> None:
     command = build_command(
-        "model_method_run", "m", "meth", inputs={"n": 3, "flag": True}
+        "model_method_run",
+        "m",
+        "meth",
+        inputs={"text": "yes", "n": 3, "fraction": 1.5, "flag": True, "nothing": None},
     )
-    assert "n=3" in command
-    assert "flag=true" in command
+    assert "--stdin" in command
+    assert "--input" not in command
+
+
+@pytest.mark.parametrize("command,positionals", [("model_method_run", ("m", "meth")), ("workflow_run", ("flow",))])
+def test_run_sends_exact_nested_json_on_stdin(
+    monkeypatch: pytest.MonkeyPatch, command: str, positionals: tuple[str, ...]
+) -> None:
+    runner = Mock(return_value=subprocess.CompletedProcess([], 0, stdout="{}", stderr=""))
+    monkeypatch.setattr("swamp_first_hermes.swamp_cli.subprocess.run", runner)
+    inputs = {"items": [1, {"enabled": True, "value": None}], "config": {"name": "x"}}
+
+    result = run_swamp_command(command, *positionals, inputs=inputs)
+
+    assert result.ok
+    argv = runner.call_args.args[0]
+    assert "--stdin" in argv and "--input" not in argv
+    assert runner.call_args.kwargs["input"] == json.dumps(inputs, separators=(",", ":"))
+
+
+def test_other_commands_never_receive_subprocess_stdin(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = Mock(return_value=subprocess.CompletedProcess([], 0, stdout="{}", stderr=""))
+    monkeypatch.setattr("swamp_first_hermes.swamp_cli.subprocess.run", runner)
+
+    assert run_swamp_command("model_search").ok
+    assert "input" not in runner.call_args.kwargs
 
 
 def test_build_command_omits_input_arguments_when_inputs_is_empty() -> None:

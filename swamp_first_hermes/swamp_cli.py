@@ -266,42 +266,52 @@ def _scrub_diagnostics(stderr_text: str, repository_directory: str | None) -> st
     return _ABSOLUTE_PATH_TOKEN_PATTERN.sub(_ABSOLUTE_PATH_PLACEHOLDER, scrubbed)
 
 
-# Commands that accept caller-supplied ``--input name=value`` pairs. Model
-# methods and workflows declare their own argument schemas, so the values are
-# opaque here; each pair becomes one discrete argv element and is never
-# concatenated into a shell string.
+# Commands that accept a caller-supplied JSON object on stdin. Model methods
+# and workflows declare their own argument schemas; no other command is given
+# a stdin channel by this adapter.
 _COMMANDS_ACCEPTING_INPUTS = frozenset({"model_method_run", "workflow_run"})
 
 # An input name is restricted to the shape Swamp's own argument names take.
-# The value is left unconstrained apart from rejecting NUL, since it may
-# legitimately contain paths, URLs, JSON, or spaces.
+# Values may be any JSON value. All strings and nested object keys reject NUL.
 _INPUT_NAME_PATTERN = re.compile(r"\A[A-Za-z_][A-Za-z0-9_.\-]*\Z")
 
 
-def _build_input_arguments(
+def _serialize_inputs(
     inputs: Mapping[str, object] | None,
-) -> tuple[str, ...]:
-    """Return validated ``--input name=value`` argv elements."""
+) -> str | None:
+    """Validate and serialize a method/workflow input object for stdin."""
     if not inputs:
-        return ()
+        return None
     if not isinstance(inputs, Mapping):
         raise ValueError("Swamp inputs must be a mapping")
-    arguments: list[str] = []
-    for name, value in inputs.items():
-        if not isinstance(name, str) or not _INPUT_NAME_PATTERN.match(name):
-            raise ValueError("Swamp input name is invalid")
-        if isinstance(value, bool):
-            rendered = "true" if value else "false"
-        elif isinstance(value, (int, float)):
-            rendered = str(value)
-        elif isinstance(value, str):
-            rendered = value
-        else:
-            raise ValueError("Swamp input value is invalid")
-        if "\x00" in rendered:
-            raise ValueError("Swamp input value is invalid")
-        arguments.extend(("--input", f"{name}={rendered}"))
-    return tuple(arguments)
+
+    def validate(value: object, *, outer: bool = False) -> object:
+        if value is None or isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            if "\x00" in value:
+                raise ValueError("Swamp input value is invalid")
+            return value
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            if not math.isfinite(value):
+                raise ValueError("Swamp input value is invalid")
+            return value
+        if isinstance(value, Mapping):
+            normalized: dict[str, object] = {}
+            for key, nested_value in value.items():
+                if not isinstance(key, str) or "\x00" in key:
+                    raise ValueError("Swamp input name is invalid")
+                if outer and not _INPUT_NAME_PATTERN.match(key):
+                    raise ValueError("Swamp input name is invalid")
+                normalized[key] = validate(nested_value)
+            return normalized
+        if isinstance(value, list):
+            return [validate(item) for item in value]
+        raise ValueError("Swamp input value is invalid")
+
+    return json.dumps(validate(inputs, outer=True), separators=(",", ":"), allow_nan=False)
 
 
 def _is_safe_positional_argument(value: object) -> bool:
@@ -343,12 +353,12 @@ def build_command(
         raise ValueError("Swamp command received an invalid argument")
     if inputs and command not in _COMMANDS_ACCEPTING_INPUTS:
         raise ValueError("Swamp command does not accept inputs")
-    input_arguments = _build_input_arguments(inputs)
+    stdin_payload = _serialize_inputs(inputs)
     return (
         "swamp",
         *command_arguments,
         *positional_arguments,
-        *input_arguments,
+        *(("--stdin",) if stdin_payload is not None else ()),
         "--json",
     )
 
@@ -429,14 +439,17 @@ def run_swamp_command(
         return SwampCliResult(ok=False, data=None, error="invalid_argument")
 
     try:
-        completed = subprocess.run(
-            list(arguments),
-            cwd=repository_directory,
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=timeout,
-        )
+        run_kwargs: dict[str, object] = {
+            "cwd": repository_directory,
+            "capture_output": True,
+            "check": False,
+            "text": True,
+            "timeout": timeout,
+        }
+        stdin_payload = _serialize_inputs(inputs)
+        if stdin_payload is not None:
+            run_kwargs["input"] = stdin_payload
+        completed = subprocess.run(list(arguments), **run_kwargs)
     except subprocess.TimeoutExpired:
         return SwampCliResult(ok=False, data=None, error="timeout")
     except FileNotFoundError:

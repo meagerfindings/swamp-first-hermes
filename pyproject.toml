@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swamp-first-hermes"
-version = "0.7.0"
+version = "0.8.0"
 description = "A Hermes directory/entry-point plugin that routes agent capability through the Swamp CLI."
 requires-python = ">=3.11"
 dependencies = ["PyYAML>=6"]

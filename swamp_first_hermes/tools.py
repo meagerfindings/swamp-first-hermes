@@ -154,12 +154,12 @@ SWAMP_MODEL_METHOD_RUN_SCHEMA = {
             "inputs": {
                 "type": "object",
                 "description": (
-                    "The method's own arguments, as name/value pairs — the "
-                    "equivalent of --input name=value. Check the method's "
+                    "The method's own arguments as a JSON object. Values may "
+                    "be any JSON value. Check the method's "
                     "declared arguments; many require values here. Put them "
                     "in this object, never in the method name."
                 ),
-                "additionalProperties": {"type": "string"},
+                "additionalProperties": True,
             },
         },
         required=("model", "method"),
@@ -205,10 +205,10 @@ SWAMP_WORKFLOW_RUN_SCHEMA = {
             "inputs": {
                 "type": "object",
                 "description": (
-                    "The workflow's own arguments, as name/value pairs — the "
-                    "equivalent of --input name=value."
+                    "The workflow's own arguments as a JSON object. Values "
+                    "may be any JSON value."
                 ),
-                "additionalProperties": {"type": "string"},
+                "additionalProperties": True,
             },
         },
         required=("name",),
